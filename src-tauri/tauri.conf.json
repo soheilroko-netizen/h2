@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "stls",
+  "productName": "shado",
   "version": "5.0.0",
   "identifier": "com.stls.app",
   "build": {

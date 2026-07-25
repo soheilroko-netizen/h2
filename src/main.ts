@@ -86,6 +86,8 @@ async function startProxy() {
     const msg = await invoke<string>('start_proxy');
     showMessage(msg, 'success');
     await updateStatus();
+    // Auto-ping once connected
+    await doPing();
   } catch (err) {
     showMessage('Failed to start: ' + err, 'error');
   }
@@ -106,11 +108,11 @@ async function doPing() {
     const config = await invoke<Config>('get_config');
     const pingEl = document.getElementById('ping-value')!;
     pingEl.textContent = 'Pinging...';
-    const ms = await invoke<number>('ping_server', {
+    const ms = await invoke<string>('ping_server', {
       address: config.server_address,
       port: config.stls_port,
     });
-    pingEl.textContent = `${ms}ms`;
+    pingEl.textContent = ms;
   } catch (err) {
     document.getElementById('ping-value')!.textContent = 'TIMEOUT';
   }

@@ -85,7 +85,7 @@ fn switch_profile(name: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn ping_server(address: String, port: u16) -> Result<u64, String> {
+fn ping_server(address: String, port: u16) -> Result<String, String> {
     use std::net::TcpStream;
     use std::time::Instant;
 
@@ -102,13 +102,17 @@ fn ping_server(address: String, port: u16) -> Result<u64, String> {
     let start = Instant::now();
     TcpStream::connect_timeout(&socket_addrs[0], std::time::Duration::from_secs(5))
         .map_err(|e| format!("Connect fail: {}", e))?;
-    let ms = start.elapsed().as_millis() as u64;
-    Ok(ms)
+    let us = start.elapsed().as_micros();
+    if us < 1000 {
+        Ok(format!("<1ms"))
+    } else {
+        Ok(format!("{:.1}ms", us as f64 / 1000.0))
+    }
 }
 
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-        .title("stls v5")
+        .title("shado v5")
         .inner_size(500.0, 480.0)
         .resizable(true)
         .build()?;
@@ -154,7 +158,8 @@ fn main() {
                 .build()?;
 
             TrayIconBuilder::new()
-                .tooltip("stls VPN")
+                .tooltip("shado VPN")
+                .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     match event.id().as_ref() {
