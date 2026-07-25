@@ -3,6 +3,7 @@ fn main() {
 
     #[cfg(windows)]
     {
-        embed_resource::compile("app.rc").expect("embed manifest");
+        // request admin via linker manifest flag (no .res file, avoids VERSION conflict with Tauri)
+        println!("cargo:rustc-link-arg-bins=/MANIFESTUAC:level=requireAdministrator");
     }
 }
