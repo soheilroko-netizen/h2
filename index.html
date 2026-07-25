@@ -13,6 +13,14 @@
         <h1>shado v5</h1>
         <p class="subtitle">ShadowTLS + Shadowsocks VPN</p>
 
+        <!-- Profile selector -->
+        <div class="profile-bar-main">
+          <select id="main-profile-select" class="profile-select">
+            <option value="Default">Default</option>
+          </select>
+          <button id="btn-main-settings" class="btn-small">Settings</button>
+        </div>
+
         <div class="status-card">
           <div class="status-indicator" id="status-dot"></div>
           <span id="status-text">Disconnected</span>
@@ -29,12 +37,19 @@
               <button id="btn-ping" class="ping-btn">Ping</button>
             </span>
           </div>
+          <div class="info-row">
+            <span class="label">Uptime:</span>
+            <span class="value" id="uptime-value">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Traffic:</span>
+            <span class="value" id="traffic-value">↑ 0 ↓ 0</span>
+          </div>
         </div>
 
         <div class="controls">
           <button id="btn-start" class="btn btn-primary">Start</button>
           <button id="btn-stop" class="btn btn-secondary" disabled>Stop</button>
-          <button id="btn-settings" class="btn btn-tertiary">Settings</button>
         </div>
 
         <div id="message" class="message"></div>

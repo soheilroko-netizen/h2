@@ -22,7 +22,7 @@ interface ProfileStore {
 }
 
 const MAIN_W = 500,
-  MAIN_H = 520;
+  MAIN_H = 560;
 const SETTINGS_W = 560,
   SETTINGS_H = 720;
 
@@ -39,6 +39,7 @@ async function showMainView() {
   document.getElementById('settings-view')!.style.display = 'none';
   await setWindowSize(MAIN_W, MAIN_H);
   updateServerInfo();
+  loadMainProfiles();
 }
 
 async function showSettingsView() {
@@ -54,6 +55,64 @@ async function updateServerInfo() {
     document.getElementById('server-value')!.textContent = `${config.server_address}:${config.stls_port}`;
   } catch {
     /* ignore */
+  }
+}
+
+async function doPing() {
+  try {
+    const config = await invoke<Config>('get_config');
+    const pingEl = document.getElementById('ping-value')!;
+    pingEl.textContent = 'Pinging...';
+    const ms = await invoke<string>('ping_server', {
+      address: config.server_address,
+      port: config.stls_port,
+    });
+    pingEl.textContent = ms;
+  } catch (err) {
+    document.getElementById('ping-value')!.textContent = 'TIMEOUT';
+  }
+}
+
+async function updateUptime() {
+  try {
+    const secs = await invoke<number>('get_uptime');
+    const el = document.getElementById('uptime-value')!;
+    if (secs === 0) {
+      el.textContent = '-';
+      return;
+    }
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    if (h > 0) {
+      el.textContent = `${h}:${pad(m)}:${pad(s)}`;
+    } else {
+      el.textContent = `${m}:${pad(s)}`;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function formatBytes(b: number): string {
+  if (b === 0) return '0';
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+async function updateTraffic() {
+  const el = document.getElementById('traffic-value')!;
+  try {
+    const raw = await invoke<string>('get_traffic');
+    const v = JSON.parse(raw);
+    const up = formatBytes(v.up);
+    const down = formatBytes(v.down);
+    el.textContent = `↑ ${up}  ↓ ${down}`;
+  } catch {
+    el.textContent = '↑ 0  ↓ 0';
   }
 }
 
@@ -103,21 +162,6 @@ async function stopProxy() {
   }
 }
 
-async function doPing() {
-  try {
-    const config = await invoke<Config>('get_config');
-    const pingEl = document.getElementById('ping-value')!;
-    pingEl.textContent = 'Pinging...';
-    const ms = await invoke<string>('ping_server', {
-      address: config.server_address,
-      port: config.stls_port,
-    });
-    pingEl.textContent = ms;
-  } catch (err) {
-    document.getElementById('ping-value')!.textContent = 'TIMEOUT';
-  }
-}
-
 function showMessage(text: string, type: 'success' | 'error') {
   const msgEl = document.getElementById('message')!;
   msgEl.textContent = text;
@@ -128,7 +172,45 @@ function showMessage(text: string, type: 'success' | 'error') {
   }, 5000);
 }
 
-// Settings functions
+// ── Main view profile selector ─────────────────────────────────
+
+async function loadMainProfiles() {
+  try {
+    const store = await invoke<ProfileStore>('get_profiles');
+    const select = document.getElementById('main-profile-select') as HTMLSelectElement;
+    const current = select.value;
+    select.innerHTML = '';
+    store.profiles.forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      opt.textContent = p.name;
+      select.appendChild(opt);
+    });
+    if (current && store.profiles.some((p) => p.name === current)) {
+      select.value = current;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+async function mainProfileChanged() {
+  const select = document.getElementById('main-profile-select') as HTMLSelectElement;
+  const name = select.value;
+  if (!name) return;
+  try {
+    await invoke('switch_profile_stop', { name });
+    // Re-read config for updated server info
+    updateServerInfo();
+    updateStatus();
+    showMessage(`Switched to '${name}'`, 'success');
+  } catch (err) {
+    showMessage('Switch failed: ' + err, 'error');
+  }
+}
+
+// ── Settings functions ─────────────────────────────────────────
+
 async function loadProfiles() {
   try {
     const store = await invoke<ProfileStore>('get_profiles');
@@ -285,17 +367,48 @@ function showSettingsMessage(text: string, type: 'success' | 'error') {
   }, 3000);
 }
 
+// ── Polling loop for traffic + uptime ──────────────────────────
+
+let polling = false;
+async function startPolling() {
+  if (polling) return;
+  polling = true;
+  while (polling) {
+    try {
+      const running = await invoke<boolean>('get_status');
+      if (running) {
+        await updateTraffic();
+        await updateUptime();
+      } else {
+        document.getElementById('traffic-value')!.textContent = '↑ 0  ↓ 0';
+        document.getElementById('uptime-value')!.textContent = '-';
+      }
+    } catch {
+      /* ignore */
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+
+function stopPolling() {
+  polling = false;
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-start')?.addEventListener('click', startProxy);
   document.getElementById('btn-stop')?.addEventListener('click', stopProxy);
   document
-    .getElementById('btn-settings')
+    .getElementById('btn-main-settings')
     ?.addEventListener('click', showSettingsView);
   document.getElementById('btn-back')?.addEventListener('click', showMainView);
   document
     .getElementById('btn-ping')
     ?.addEventListener('click', doPing);
+  document
+    .getElementById('main-profile-select')
+    ?.addEventListener('change', mainProfileChanged);
+
   document
     .getElementById('settings-form')
     ?.addEventListener('submit', saveConfig);
@@ -308,7 +421,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document
     .getElementById('btn-delete-profile')
     ?.addEventListener('click', deleteProfile);
+
   updateServerInfo();
+  loadMainProfiles();
   updateStatus();
   setInterval(updateStatus, 2000);
+  startPolling();
 });

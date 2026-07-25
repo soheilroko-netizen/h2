@@ -326,6 +326,43 @@ h1 {
   background: var(--border);
 }
 
+/* ── Main view profile bar ─────────────────────────────────── */
+
+.profile-bar-main {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.profile-bar-main .profile-select {
+  flex: 1;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btn-small {
+  padding: 8px 14px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+
+.btn-small:hover {
+  background: var(--border);
+}
+
 /* ── Ping button ────────────────────────────────────────────── */
 
 .ping-btn {

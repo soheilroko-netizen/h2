@@ -3,6 +3,7 @@
 
 use std::sync::Mutex;
 use std::net::ToSocketAddrs;
+use std::time::Instant;
 use tauri::{
     State,
     Manager,
@@ -21,6 +22,7 @@ use proxy::ProxyManager;
 
 struct AppState {
     proxy: Mutex<ProxyManager>,
+    started_at: Mutex<Option<Instant>>,
 }
 
 #[tauri::command]
@@ -32,13 +34,17 @@ fn get_status(state: State<AppState>) -> Result<bool, String> {
 #[tauri::command]
 fn start_proxy(state: State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
-    proxy.start().map_err(|e| e.to_string())
+    proxy.start().map_err(|e| e.to_string())?;
+    *state.started_at.lock().unwrap() = Some(Instant::now());
+    Ok("VPN mode started".to_string())
 }
 
 #[tauri::command]
 fn stop_proxy(state: State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
-    proxy.stop().map_err(|e| e.to_string())
+    let r = proxy.stop().map_err(|e| e.to_string());
+    *state.started_at.lock().unwrap() = None;
+    r
 }
 
 #[tauri::command]
@@ -88,17 +94,14 @@ fn switch_profile(name: String) -> Result<String, String> {
 fn ping_server(address: String, port: u16) -> Result<String, String> {
     use std::net::TcpStream;
     use std::time::Instant;
-
     let addr = format!("{}:{}", address, port);
     let socket_addrs = addr
         .to_socket_addrs()
         .map_err(|e| format!("DNS fail: {}", e))?
         .collect::<Vec<_>>();
-
     if socket_addrs.is_empty() {
         return Err("No IP resolved".into());
     }
-
     let start = Instant::now();
     TcpStream::connect_timeout(&socket_addrs[0], std::time::Duration::from_secs(5))
         .map_err(|e| format!("Connect fail: {}", e))?;
@@ -110,17 +113,68 @@ fn ping_server(address: String, port: u16) -> Result<String, String> {
     }
 }
 
+#[tauri::command]
+fn get_traffic() -> Result<String, String> {
+    let url = "http://127.0.0.1:9097/traffic?token=shado";
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .map_err(|e| format!("HTTP client: {}", e))?;
+    let resp = client
+        .get(url)
+        .send()
+        .map_err(|e| format!("traffic req: {}", e))?;
+    // Read one SSE line
+    let line = resp
+        .text()
+        .map_err(|e| format!("read traffic: {}", e))?;
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return Err("no data".into());
+    }
+    let mut up: u64 = 0;
+    let mut down: u64 = 0;
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        up = v["up"].as_u64().unwrap_or(0);
+        down = v["down"].as_u64().unwrap_or(0);
+    }
+    Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down))
+}
+
+#[tauri::command]
+fn get_uptime(state: State<AppState>) -> Result<u64, String> {
+    let guard = state.started_at.lock().unwrap();
+    match *guard {
+        Some(start) => Ok(start.elapsed().as_secs()),
+        None => Ok(0),
+    }
+}
+
+#[tauri::command]
+fn switch_profile_stop(state: State<AppState>, name: String) -> Result<String, String> {
+    // Stop if running, switch profile, return status
+    {
+        let mut proxy = state.proxy.lock().unwrap();
+        if proxy.is_running() {
+            proxy.stop().map_err(|e| e.to_string())?;
+            *state.started_at.lock().unwrap() = None;
+        }
+    }
+    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
+    store.switch_profile(&name).map_err(|e| e.to_string())?;
+    Ok(format!("Switched to '{}'", name))
+}
+
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .title("shado v5")
-        .inner_size(500.0, 480.0)
+        .inner_size(500.0, 520.0)
         .resizable(true)
         .build()?;
     Ok(())
 }
 
 fn main() {
-    // Log panics to file for debugging silent crashes
     let panic_log = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.to_path_buf()))
@@ -140,9 +194,9 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(AppState {
             proxy: Mutex::new(proxy_manager),
+            started_at: Mutex::new(None),
         })
         .setup(|app| {
-            // Build tray menu
             let show_item = MenuItemBuilder::with_id("show", "Show")
                 .build(app)?;
             let hide_item = MenuItemBuilder::with_id("hide", "Hide")
@@ -206,7 +260,6 @@ fn main() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
-                    // Minimize to tray instead of closing
                     window.hide().ok();
                     api.prevent_close();
                 }
@@ -222,7 +275,10 @@ fn main() {
             add_profile,
             delete_profile,
             switch_profile,
+            switch_profile_stop,
             ping_server,
+            get_traffic,
+            get_uptime,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");

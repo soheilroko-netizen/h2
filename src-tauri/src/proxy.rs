@@ -60,11 +60,21 @@ fn no_window(cmd: &mut Command) -> &mut Command {
 struct SbConfig {
     log: SbLog,
     #[serde(skip_serializing_if = "Option::is_none")]
+    clash_api: Option<SbClashApi>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     dns: Option<SbDns>,
     inbounds: Vec<SbInbound>,
     outbounds: Vec<SbOutbound>,
     #[serde(skip_serializing_if = "Option::is_none")]
     route: Option<SbRoute>,
+}
+
+#[derive(Serialize)]
+struct SbClashApi {
+    external_controller: String,
+    external_ui: String,
+    secret: String,
+    default_mode: String,
 }
 
 #[derive(Serialize)]
@@ -441,6 +451,12 @@ impl ProxyManager {
                 level: "info".into(),
                 timestamp: true,
             },
+            clash_api: Some(SbClashApi {
+                external_controller: "127.0.0.1:9097".into(),
+                external_ui: "".into(),
+                secret: "shado".into(),
+                default_mode: "rule".into(),
+            }),
             dns: Some(SbDns {
                 servers: vec![
                     SbDnsServer {
