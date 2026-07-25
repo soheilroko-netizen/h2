@@ -22,7 +22,7 @@ interface ProfileStore {
 }
 
 const MAIN_W = 500,
-  MAIN_H = 480;
+  MAIN_H = 520;
 const SETTINGS_W = 560,
   SETTINGS_H = 720;
 
@@ -38,6 +38,7 @@ async function showMainView() {
   document.getElementById('main-view')!.style.display = 'block';
   document.getElementById('settings-view')!.style.display = 'none';
   await setWindowSize(MAIN_W, MAIN_H);
+  updateServerInfo();
 }
 
 async function showSettingsView() {
@@ -45,6 +46,15 @@ async function showSettingsView() {
   document.getElementById('settings-view')!.style.display = 'block';
   await setWindowSize(SETTINGS_W, SETTINGS_H);
   loadProfiles();
+}
+
+async function updateServerInfo() {
+  try {
+    const config = await invoke<Config>('get_config');
+    document.getElementById('server-value')!.textContent = `${config.server_address}:${config.stls_port}`;
+  } catch {
+    /* ignore */
+  }
 }
 
 async function updateStatus() {
@@ -88,6 +98,21 @@ async function stopProxy() {
     await updateStatus();
   } catch (err) {
     showMessage('Failed to stop: ' + err, 'error');
+  }
+}
+
+async function doPing() {
+  try {
+    const config = await invoke<Config>('get_config');
+    const pingEl = document.getElementById('ping-value')!;
+    pingEl.textContent = 'Pinging...';
+    const ms = await invoke<number>('ping_server', {
+      address: config.server_address,
+      port: config.stls_port,
+    });
+    pingEl.textContent = `${ms}ms`;
+  } catch (err) {
+    document.getElementById('ping-value')!.textContent = 'TIMEOUT';
   }
 }
 
@@ -267,6 +292,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ?.addEventListener('click', showSettingsView);
   document.getElementById('btn-back')?.addEventListener('click', showMainView);
   document
+    .getElementById('btn-ping')
+    ?.addEventListener('click', doPing);
+  document
     .getElementById('settings-form')
     ?.addEventListener('submit', saveConfig);
   document
@@ -278,6 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document
     .getElementById('btn-delete-profile')
     ?.addEventListener('click', deleteProfile);
+  updateServerInfo();
   updateStatus();
   setInterval(updateStatus, 2000);
 });

@@ -2,7 +2,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::sync::Mutex;
-use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
+use std::net::ToSocketAddrs;
+use tauri::{
+    Manager,
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    WebviewUrl, WebviewWindowBuilder,
+};
 
 mod config;
 mod proxy;
@@ -77,6 +83,28 @@ fn switch_profile(name: String) -> Result<String, String> {
     Ok(format!("Switched to profile '{}'", name))
 }
 
+#[tauri::command]
+fn ping_server(address: String, port: u16) -> Result<u64, String> {
+    use std::net::TcpStream;
+    use std::time::Instant;
+
+    let addr = format!("{}:{}", address, port);
+    let socket_addrs = addr
+        .to_socket_addrs()
+        .map_err(|e| format!("DNS fail: {}", e))?
+        .collect::<Vec<_>>();
+
+    if socket_addrs.is_empty() {
+        return Err("No IP resolved".into());
+    }
+
+    let start = Instant::now();
+    TcpStream::connect_timeout(&socket_addrs[0], std::time::Duration::from_secs(5))
+        .map_err(|e| format!("Connect fail: {}", e))?;
+    let ms = start.elapsed().as_millis() as u64;
+    Ok(ms)
+}
+
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .title("stls v5")
@@ -109,8 +137,74 @@ fn main() {
             proxy: Mutex::new(proxy_manager),
         })
         .setup(|app| {
+            // Build tray menu
+            let show_item = MenuItemBuilder::with_id("show", "Show")
+                .build(app)?;
+            let hide_item = MenuItemBuilder::with_id("hide", "Hide")
+                .build(app)?;
+            let quit_item = MenuItemBuilder::with_id("quit", "Quit")
+                .build(app)?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&show_item)
+                .item(&hide_item)
+                .separator()
+                .item(&quit_item)
+                .build()?;
+
+            TrayIconBuilder::new()
+                .tooltip("stls VPN")
+                .menu(&menu)
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                window.show().ok();
+                                window.set_focus().ok();
+                            }
+                        }
+                        "hide" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                window.hide().ok();
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            if window.is_visible().ok().unwrap_or(false) {
+                                window.hide().ok();
+                            } else {
+                                window.show().ok();
+                                window.set_focus().ok();
+                            }
+                        }
+                    }
+                })
+                .build(app)?;
+
             create_main_window(&app.handle())?;
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    // Minimize to tray instead of closing
+                    window.hide().ok();
+                    api.prevent_close();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             get_status,
@@ -122,6 +216,7 @@ fn main() {
             add_profile,
             delete_profile,
             switch_profile,
+            ping_server,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");
