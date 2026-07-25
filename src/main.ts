@@ -82,12 +82,12 @@ async function updateStatus() {
 }
 
 async function startProxy() {
+  // Ping before connect (avoid tunnel interference)
+  await doPing();
   try {
     const msg = await invoke<string>('start_proxy');
     showMessage(msg, 'success');
     await updateStatus();
-    // Auto-ping once connected
-    await doPing();
   } catch (err) {
     showMessage('Failed to start: ' + err, 'error');
   }
