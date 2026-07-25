@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::sysdns;
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File};
+use std::fs::{self};
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
@@ -384,7 +384,7 @@ impl ProxyManager {
     }
 
     pub fn stop(&mut self) -> Result<String> {
-        let mode = self.active_mode.lock().unwrap().take();
+        let _mode = self.active_mode.lock().unwrap().take();
 
         let mut guard = self.child.lock().unwrap();
         let was_running = guard.is_some();

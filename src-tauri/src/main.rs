@@ -4,6 +4,7 @@
 use std::sync::Mutex;
 use std::net::ToSocketAddrs;
 use tauri::{
+    State,
     Manager,
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
