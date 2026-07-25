@@ -115,26 +115,35 @@ fn ping_server(address: String, port: u16) -> Result<String, String> {
 
 #[tauri::command]
 fn get_traffic() -> Result<String, String> {
+    use std::io::{BufRead, BufReader};
+
     let url = "http://127.0.0.1:9097/traffic?token=shado";
     let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
+        .timeout(std::time::Duration::from_secs(3))
         .build()
         .map_err(|e| format!("HTTP client: {}", e))?;
     let resp = client
         .get(url)
         .send()
         .map_err(|e| format!("traffic req: {}", e))?;
-    // Read one SSE line
-    let line = resp
-        .text()
+    // SSE never closes, read first line only
+    let mut reader = BufReader::new(resp);
+    let mut line = String::new();
+    reader
+        .read_line(&mut line)
         .map_err(|e| format!("read traffic: {}", e))?;
     let trimmed = line.trim();
     if trimmed.is_empty() {
         return Err("no data".into());
     }
+    // SSE lines are "data: {json}", strip prefix
+    let json_str = trimmed
+        .strip_prefix("data: ")
+        .unwrap_or(trimmed)
+        .trim();
     let mut up: u64 = 0;
     let mut down: u64 = 0;
-    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str) {
         up = v["up"].as_u64().unwrap_or(0);
         down = v["down"].as_u64().unwrap_or(0);
     }
