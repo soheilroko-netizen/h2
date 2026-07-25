@@ -294,7 +294,8 @@ impl ProxyManager {
 
         // Validate config before launch (no window)
         self.debug_log("running sing-box check...");
-        let check_output = no_window(Command::new(&exe))
+        let mut cmd = Command::new(&exe);
+        let check_output = no_window(&mut cmd)
             .arg("check")
             .arg("-c")
             .arg(&cfg_path)
@@ -334,7 +335,7 @@ impl ProxyManager {
         self.debug_log("sing-box process spawned");
 
         #[cfg(not(target_os = "windows"))]
-        let child = no_window(Command::new(&exe))
+        let child = Command::new(&exe)
             .arg("run")
             .arg("-c")
             .arg(&cfg_path)
