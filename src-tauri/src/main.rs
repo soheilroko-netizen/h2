@@ -59,7 +59,7 @@ struct AppState {
 #[tauri::command]
 fn start_proxy(state: State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
-    let result = proxy.start()?;
+    let result = proxy.start().map_err(|e| e.to_string())?;
     *state.started_at.lock().unwrap() = Some(Instant::now());
     Ok(result)
 }
@@ -67,7 +67,7 @@ fn start_proxy(state: State<AppState>) -> Result<String, String> {
 #[tauri::command]
 fn stop_proxy(state: State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
-    let result = proxy.stop()?;
+    let result = proxy.stop().map_err(|e| e.to_string())?;
     *state.started_at.lock().unwrap() = None;
     Ok(result)
 }
@@ -123,7 +123,7 @@ fn switch_profile(name: String) -> Result<String, String> {
 fn switch_profile_stop(name: String, state: State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
     if proxy.is_running() {
-        proxy.stop()?;
+        proxy.stop().map_err(|e| e.to_string())?;
         *state.started_at.lock().unwrap() = None;
     }
     drop(proxy);
