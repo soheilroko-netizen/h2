@@ -1,9 +1,46 @@
+// main.rs - Tauri app entry with commands
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+// ── Single-instance guard via named mutex (Windows) ──────────────────
+// Prevents launching a second instance while one is already running.
+#[cfg(target_os = "windows")]
+fn check_single_instance() {
+    use std::ffi::CString;
+    use std::ptr;
+    extern "system" {
+        fn CreateMutexA(
+            lpMutexAttributes: *mut std::ffi::c_void,
+            bInitialOwner: i32,
+            lpName: *const i8,
+        ) -> *mut std::ffi::c_void;
+        fn GetLastError() -> u32;
+    }
+    // Create a named mutex — if it already exists (ERROR_ALREADY_EXISTS),
+    // another instance is running, so exit.
+    let name = CString::new("Local\\stls-single-instance-mutex").unwrap();
+    // SAFETY: trivially safe — passing a valid CString, checking for errors
+    let handle = unsafe { CreateMutexA(ptr::null_mut(), 0, name.as_ptr()) };
+    if handle.is_null() {
+        eprintln!("[stls] CreateMutexA failed");
+        return;
+    }
+    const ERROR_ALREADY_EXISTS: u32 = 183;
+    // SAFETY: GetLastError is safe to call after CreateMutexA
+    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+        println!("[stls] Another instance is already running — exiting.");
+        std::process::exit(0);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn check_single_instance() {}
+
 use std::sync::Mutex;
 use std::time::Instant;
 
-use tauri::menu::{MenuBuilder, MenuItemBuilder, MenuItemKind};
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{Manager, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 use config::{Config, ProfileStore};
 use proxy::ProxyManager;
@@ -43,7 +80,7 @@ fn get_status(state: State<AppState>) -> Result<bool, String> {
 #[tauri::command]
 fn get_config() -> Result<Config, String> {
     let store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.get_active_config()
+    store.get_active_config().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -64,7 +101,7 @@ fn get_profiles() -> Result<ProfileStore, String> {
 #[tauri::command]
 fn add_profile(name: String, config: Config) -> Result<String, String> {
     let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.add_profile(&name, config).map_err(|e| e.to_string())?;
+    store.add_profile(name, config).map_err(|e| e.to_string())?;
     Ok(format!("Created '{}'", name))
 }
 
@@ -165,7 +202,7 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
 
     let fmt = |us: u64| -> String {
         if us < 1000 {
-            format!("<1ms")
+            "<1ms".into()
         } else {
             format!("{:.0}ms", us as f64 / 1000.0)
         }
@@ -208,12 +245,9 @@ fn main() {
             started_at: Mutex::new(None),
         })
         .setup(|app| {
-            let show_item = MenuItemBuilder::with_id("show", "Show")
-                .build(app)?;
-            let hide_item = MenuItemBuilder::with_id("hide", "Hide")
-                .build(app)?;
-            let quit_item = MenuItemBuilder::with_id("quit", "Quit")
-                .build(app)?;
+            let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
+            let hide_item = MenuItemBuilder::with_id("hide", "Hide").build(app)?;
+            let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
 
             let menu = MenuBuilder::new(app)
                 .item(&show_item)
