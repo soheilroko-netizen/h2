@@ -329,7 +329,7 @@ impl ProxyManager {
         *self.child.lock().unwrap() = Some(child);
         *self.active_mode.lock().unwrap() = Some("vpn".into());
 
-        // Check liveness — if sing-box died instantly, report why
+        // Short wait — just enough to catch instant crash on first poll
         let mut guard = self.child.lock().unwrap();
         if let Some(ref mut c) = *guard {
             std::thread::sleep(std::time::Duration::from_millis(500));

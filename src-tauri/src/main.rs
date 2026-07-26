@@ -175,7 +175,7 @@ fn get_traffic() -> Result<String, String> {
     stream.write_all(req.as_bytes()).map_err(|e| format!("send: {}", e))?;
     stream.flush().ok();
 
-    // Read data in 500ms chunks for up to 3s — collect last SSE line
+    // Read SSE data for up to 3s — retry on timeout, collect last event
     let deadline = Instant::now() + Duration::from_secs(3);
     let mut body = String::new();
     let mut buf = [0u8; 4096];
@@ -185,10 +185,13 @@ fn get_traffic() -> Result<String, String> {
             Ok(n) => {
                 body.push_str(&String::from_utf8_lossy(&buf[..n]));
             }
-            Err(_) => {
-                // Timeout or other error — stop collecting
-                break;
+            Err(ref e)
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                continue; // timeout — keep reading, data may arrive later
             }
+            Err(_) => break,
         }
     }
 
