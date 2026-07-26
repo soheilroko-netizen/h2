@@ -11,37 +11,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Profile {
-    pub ss_method: String,
-    pub ss_password: String,
-    pub ss_server: String,
-    pub ss_port: u16,
-    pub stls_server: String,
-    pub stls_port: u16,
-    pub stls_password: String,
-    pub stls_sni: String,
-    pub local_addr: String,
-    pub local_port: u16,
-}
-
-impl Default for Profile {
-    fn default() -> Self {
-        Profile {
-            ss_method: "2022-blake3-chacha20-poly1305".into(),
-            ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".into(),
-            ss_server: "ns.baft.uk".into(),
-            ss_port: 8380,
-            stls_server: "ns.baft.uk".into(),
-            stls_port: 8553,
-            stls_password: "y2lachetore".into(),
-            stls_sni: "dl.google.com".into(),
-            local_addr: "127.0.0.1".into(),
-            local_port: 1080,
-        }
-    }
-}
-
 // ── Windows helper: spawn without console window ──────────────────
 #[cfg(target_os = "windows")]
 fn no_window(cmd: &mut Command) -> &mut Command {

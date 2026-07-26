@@ -152,4 +152,13 @@ impl ProfileStore {
         self.active_profile = name.to_string();
         self.save()
     }
+
+    pub fn update_active_config(&mut self, config: Config) -> Result<()> {
+        if let Some(profile) = self.profiles.iter_mut().find(|p| p.name == self.active_profile) {
+            profile.config = config;
+            self.save()
+        } else {
+            anyhow::bail!("Active profile '{}' not found", self.active_profile);
+        }
+    }
 }

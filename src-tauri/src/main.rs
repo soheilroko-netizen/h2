@@ -91,7 +91,9 @@ fn get_config() -> Result<Config, String> {
 
 #[tauri::command]
 fn save_config(config: Config) -> Result<String, String> {
-    config.save().map_err(|e| e.to_string())?;
+    // Save to active profile, not standalone config.json
+    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
+    store.update_active_config(config).map_err(|e| e.to_string())?;
     Ok("Configuration saved".to_string())
 }
 
