@@ -40,7 +40,7 @@ use std::time::Instant;
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 use config::{Config, ProfileStore};
 use proxy::ProxyManager;
@@ -101,7 +101,7 @@ fn get_profiles() -> Result<ProfileStore, String> {
 #[tauri::command]
 fn add_profile(name: String, config: Config) -> Result<String, String> {
     let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.add_profile(name, config).map_err(|e| e.to_string())?;
+    store.add_profile(name.clone(), config).map_err(|e| e.to_string())?;
     Ok(format!("Created '{}'", name))
 }
 
