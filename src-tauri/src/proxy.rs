@@ -462,7 +462,7 @@ impl ProxyManager {
                 listen_port: None,
                 interface_name: None,
                 address: Some(vec!["172.19.0.1/30".into()]),
-                mtu: None,
+                mtu: c.mtu,
                 auto_route: Some(true),
                 strict_route: Some(true),
                 stack: Some("system".into()),

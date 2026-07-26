@@ -135,24 +135,61 @@ fn switch_profile_stop(name: String, state: State<AppState>) -> Result<String, S
 
 #[tauri::command]
 fn get_traffic() -> Result<String, String> {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
-        .build()
-        .map_err(|e| format!("http client: {}", e))?;
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
 
-    let resp = client
-        .get("http://127.0.0.1:9097/connections?token=shado")
-        .send()
-        .map_err(|e| format!("connections req: {}", e))?;
+    // Connect to sing-box clash API /traffic SSE endpoint
+    // Response: stream of lines like {"up":123,"down":456}
+    let mut stream = TcpStream::connect_timeout(
+        &"127.0.0.1:9097".parse().map_err(|e| format!("addr: {}", e))?,
+        Duration::from_secs(2),
+    )
+    .map_err(|e| format!("connect: {}", e))?;
 
-    if !resp.status().is_success() {
-        return Err(format!("bad status: {}", resp.status()));
+    stream
+        .set_read_timeout(Some(Duration::from_millis(800)))
+        .map_err(|e| format!("set_read_timeout: {}", e))?;
+
+    let req = "GET /traffic?token=shado HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nConnection: close\r\n\r\n";
+    stream
+        .write_all(req.as_bytes())
+        .map_err(|e| format!("write: {}", e))?;
+
+    // Read stream — collect everything for up to 1.5s, keep last valid JSON line
+    let deadline = Instant::now() + Duration::from_millis(1500);
+    let mut all_data = String::new();
+    let mut buf = [0u8; 2048];
+
+    while Instant::now() < deadline {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                all_data.push_str(&String::from_utf8_lossy(&buf[..n]));
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock
+                || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                continue;
+            }
+            Err(e) => return Err(format!("read: {}", e)),
+        }
     }
 
-    let body: serde_json::Value = resp.json().map_err(|e| format!("parse: {}", e))?;
-    let up = body["uploadTotal"].as_u64().unwrap_or(0);
-    let down = body["downloadTotal"].as_u64().unwrap_or(0);
+    // Find last line that looks like {"up":N,"down":N}
+    let mut last_json: Option<(u64, u64)> = None;
+    for line in all_data.lines() {
+        let line = line.trim();
+        if line.starts_with('{') && line.contains("\"up\"") {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+                let up = v["up"].as_u64().unwrap_or(0);
+                let down = v["down"].as_u64().unwrap_or(0);
+                last_json = Some((up, down));
+            }
+        }
+    }
 
+    let (up, down) = last_json.unwrap_or((0, 0));
     Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down))
 }
 
@@ -172,43 +209,32 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
         return Err("VPN not connected".into());
     }
 
+    // Two-request ping:
+    // 1st request warms up TLS handshake
+    // 2nd request measures established-connection latency only
     let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(8))
+        .timeout(std::time::Duration::from_secs(3))
         .build()
         .map_err(|e| format!("http client: {}", e))?;
 
     let target = "http://www.gstatic.com/generate_204";
-    let count = 5;
-    let mut times = Vec::with_capacity(count as usize);
 
-    for i in 0..count {
-        let start = Instant::now();
-        let resp = client
-            .get(target)
-            .send()
-            .map_err(|e| format!("ping #{} failed: {}", i + 1, e))?;
-        let elapsed = start.elapsed();
-        let status = resp.status();
-        if !status.is_success() && status.as_u16() != 204 {
-            return Err(format!("bad status on ping #{}: {}", i + 1, status));
-        }
-        times.push(elapsed);
+    // Warmup request (discards result)
+    if let Err(e) = client.get(target).send() {
+        return Err(format!("warmup failed: {}", e));
     }
 
-    let us: Vec<u64> = times.iter().map(|t| t.as_micros() as u64).collect();
-    let min = us.iter().min().copied().unwrap_or(0);
-    let max = us.iter().max().copied().unwrap_or(0);
-    let avg = us.iter().sum::<u64>() / us.len() as u64;
+    // Measure request (actual latency)
+    let start = Instant::now();
+    let resp = client.get(target).send().map_err(|e| format!("measure failed: {}", e))?;
+    if !resp.status().is_success() && resp.status().as_u16() != 204 {
+        return Err(format!("bad status: {}", resp.status()));
+    }
+    let elapsed = start.elapsed();
 
-    let fmt = |us: u64| -> String {
-        if us < 1000 {
-            "<1ms".into()
-        } else {
-            format!("{:.0}ms", us as f64 / 1000.0)
-        }
-    };
-
-    Ok(format!("avg {} | min {} | max {}", fmt(avg), fmt(min), fmt(max)))
+    // Return single ms value, like v2rayN
+    let ms = (elapsed.as_micros() as f64 / 1000.0) as u64;
+    Ok(format!("{}ms", ms))
 }
 
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {

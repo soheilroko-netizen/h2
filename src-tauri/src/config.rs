@@ -19,6 +19,8 @@ pub struct Config {
     pub stls_sni: String,
     #[serde(default = "default_socks5_port")]
     pub socks5_port: u16,
+    #[serde(default)]
+    pub mtu: Option<u32>,
 }
 
 fn default_server_address() -> String { "ns.baft.uk".to_string() }
@@ -49,6 +51,7 @@ impl Default for Config {
             stls_password: "y2lachetore".to_string(),
             stls_sni: "dl.google.com".to_string(),
             socks5_port: 1080,
+            mtu: None,
         }
     }
 }
