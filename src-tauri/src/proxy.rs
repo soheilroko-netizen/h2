@@ -253,8 +253,9 @@ impl ProxyManager {
             }
         }
 
-        // Re-read config
-        self.config = Config::load()?;
+        // Re-read config from active profile
+        let store = crate::config::ProfileStore::load()?;
+        self.config = store.get_active_config()?;
         self.debug_log(format!("config loaded"));
 
         let exe = self.get_bundled_or_download()?;

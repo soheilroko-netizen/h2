@@ -26,9 +26,19 @@ fn check_single_instance() {
         }
         let err = GetLastError();
         if err == 183 {
-            // ERROR_ALREADY_EXISTS
-            // Bring existing window to front via a second named event
-            eprintln!("[stls] Another instance is already running.");
+            // ERROR_ALREADY_EXISTS — another instance running
+            // Show message via Windows MessageBox then exit
+            let msg = CString::new("shado is already running.\n\nOnly one instance is allowed.").unwrap();
+            let title = CString::new("shado").unwrap();
+            extern "system" {
+                fn MessageBoxA(
+                    hWnd: *mut std::ffi::c_void,
+                    lpText: *const i8,
+                    lpCaption: *const i8,
+                    uType: u32,
+                ) -> i32;
+            }
+            MessageBoxA(ptr::null_mut(), msg.as_ptr(), title.as_ptr(), 0x40 /* MB_ICONINFORMATION | MB_OK */);
             std::process::exit(0);
         }
     }
@@ -146,9 +156,9 @@ fn switch_profile_stop(state: State<AppState>, name: String) -> Result<String, S
 
 #[tauri::command]
 fn get_traffic() -> Result<String, String> {
-    use std::io::{Read, Write};
+    use std::io::Read;
     use std::net::TcpStream;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     let mut stream = TcpStream::connect_timeout(
         &"127.0.0.1:9097".to_socket_addrs().unwrap().next().unwrap(),
@@ -156,48 +166,55 @@ fn get_traffic() -> Result<String, String> {
     )
     .map_err(|e| format!("connect clash_api: {}", e))?;
     stream
-        .set_read_timeout(Some(Duration::from_secs(3)))
+        .set_read_timeout(Some(Duration::from_millis(500)))
         .ok();
     let req = format!(
         "GET /traffic?token=shado HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nConnection: close\r\n\r\n"
     );
+    use std::io::Write;
     stream.write_all(req.as_bytes()).map_err(|e| format!("send: {}", e))?;
     stream.flush().ok();
 
-    // Read entire response until EOF — handles chunked + identity encoding
-    let mut buf = Vec::new();
-    Read::read_to_end(&mut stream, &mut buf)
-        .map_err(|e| format!("read response: {}", e))?;
-    let response = String::from_utf8_lossy(&buf);
+    // Read data in 500ms chunks for up to 3s — collect last SSE line
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let mut body = String::new();
+    let mut buf = [0u8; 4096];
+    while Instant::now() < deadline {
+        match stream.read(&mut buf) {
+            Ok(0) => break, // EOF
+            Ok(n) => {
+                body.push_str(&String::from_utf8_lossy(&buf[..n]));
+            }
+            Err(_) => {
+                // Timeout or other error — stop collecting
+                break;
+            }
+        }
+    }
 
-    // Skip HTTP headers
-    let body_start = response.find("\r\n\r\n").map(|i| i + 4).unwrap_or(0);
-    let body = &response[body_start..];
+    // Find headers end
+    let body = match body.find("\r\n\r\n") {
+        Some(i) => &body[i + 4..],
+        None => &body,
+    };
 
-    // Find first SSE data line
+    // Find last data line (trailing SSE)
+    let mut last_up = 0u64;
+    let mut last_down = 0u64;
     for line in body.lines() {
         let trimmed = line.trim();
         if let Some(json_str) = trimmed
             .strip_prefix("data: ")
             .or_else(|| trimmed.strip_prefix("data:"))
         {
-            let json_str = json_str.trim();
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str) {
-                let up = v["up"].as_u64().unwrap_or(0);
-                let down = v["down"].as_u64().unwrap_or(0);
-                return Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down));
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str.trim()) {
+                last_up = v["up"].as_u64().unwrap_or(last_up);
+                last_down = v["down"].as_u64().unwrap_or(last_down);
             }
         }
     }
 
-    // Fallback — try parse whole body as JSON
-    if let Ok(v) = serde_json::from_str::<serde_json::Value>(body.trim()) {
-        let up = v["up"].as_u64().unwrap_or(0);
-        let down = v["down"].as_u64().unwrap_or(0);
-        return Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down));
-    }
-
-    Ok(r#"{"up":0,"down":0}"#.into())
+    Ok(format!(r#"{{"up":{},"down":{}}}"#, last_up, last_down))
 }
 
 #[tauri::command]
