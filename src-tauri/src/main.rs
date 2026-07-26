@@ -1,110 +1,59 @@
-// main.rs - Tauri app entry with commands
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-// ── Single-instance guard via named mutex (Windows) ──────────────────
-// Prevents launching a second instance while one is already running.
-#[cfg(target_os = "windows")]
-fn check_single_instance() {
-    use std::ffi::CString;
-    use std::ptr;
-    extern "system" {
-        fn CreateMutexA(
-            lpMutexAttributes: *mut std::ffi::c_void,
-            bInitialOwner: i32,
-            lpName: *const i8,
-        ) -> *mut std::ffi::c_void;
-        fn GetLastError() -> u32;
-    }
-    // Create a named mutex — if it already exists (ERROR_ALREADY_EXISTS),
-    // another instance is running, so exit.
-    let name = CString::new("Local\\stls-single-instance-mutex").unwrap();
-    unsafe {
-        let handle = CreateMutexA(ptr::null_mut(), 0, name.as_ptr());
-        if handle.is_null() {
-            // Can't create mutex — weird state, proceed anyway
-            return;
-        }
-        let err = GetLastError();
-        if err == 183 {
-            // ERROR_ALREADY_EXISTS — another instance running
-            // Show message via Windows MessageBox then exit
-            let msg = CString::new("shado is already running.\n\nOnly one instance is allowed.").unwrap();
-            let title = CString::new("shado").unwrap();
-            extern "system" {
-                fn MessageBoxA(
-                    hWnd: *mut std::ffi::c_void,
-                    lpText: *const i8,
-                    lpCaption: *const i8,
-                    uType: u32,
-                ) -> i32;
-            }
-            MessageBoxA(ptr::null_mut(), msg.as_ptr(), title.as_ptr(), 0x40 /* MB_ICONINFORMATION | MB_OK */);
-            std::process::exit(0);
-        }
-    }
-}
-#[cfg(not(target_os = "windows"))]
-fn check_single_instance() {}
-
 use std::sync::Mutex;
-use std::net::ToSocketAddrs;
 use std::time::Instant;
-use tauri::{
-    State,
-    Manager,
-    menu::{MenuBuilder, MenuItemBuilder},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    WebviewUrl, WebviewWindowBuilder,
-};
+
+use tauri::menu::{MenuBuilder, MenuItemBuilder, MenuItemKind};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{Manager, WebviewWindowBuilder};
+
+use config::{Config, ProfileStore};
+use proxy::ProxyManager;
 
 mod config;
 mod proxy;
 mod sysdns;
-
-use config::Config;
-use config::ProfileStore;
-use proxy::ProxyManager;
 
 struct AppState {
     proxy: Mutex<ProxyManager>,
     started_at: Mutex<Option<Instant>>,
 }
 
-#[tauri::command]
-fn get_status(state: State<AppState>) -> Result<bool, String> {
-    let proxy = state.proxy.lock().unwrap();
-    Ok(proxy.is_running())
-}
+// ── Tauri commands ──────────────────────────────────────────────
 
 #[tauri::command]
 fn start_proxy(state: State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
-    proxy.start().map_err(|e| e.to_string())?;
+    let result = proxy.start()?;
     *state.started_at.lock().unwrap() = Some(Instant::now());
-    Ok("VPN mode started".to_string())
+    Ok(result)
 }
 
 #[tauri::command]
 fn stop_proxy(state: State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
-    let r = proxy.stop().map_err(|e| e.to_string());
+    let result = proxy.stop()?;
     *state.started_at.lock().unwrap() = None;
-    r
+    Ok(result)
+}
+
+#[tauri::command]
+fn get_status(state: State<AppState>) -> Result<bool, String> {
+    Ok(state.proxy.lock().unwrap().is_running())
 }
 
 #[tauri::command]
 fn get_config() -> Result<Config, String> {
-    // Return active profile config, not standalone config.json
     let store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.get_active_config().map_err(|e| e.to_string())
+    store.get_active_config()
 }
 
 #[tauri::command]
 fn save_config(config: Config) -> Result<String, String> {
     // Save to active profile, not standalone config.json
     let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.update_active_config(config).map_err(|e| e.to_string())?;
-    Ok("Configuration saved".to_string())
+    store
+        .update_active_config(config)
+        .map_err(|e| e.to_string())?;
+    Ok("Saved".into())
 }
 
 #[tauri::command]
@@ -115,40 +64,33 @@ fn get_profiles() -> Result<ProfileStore, String> {
 #[tauri::command]
 fn add_profile(name: String, config: Config) -> Result<String, String> {
     let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store
-        .add_profile(name.clone(), config)
-        .map_err(|e| e.to_string())?;
-    Ok(format!("Profile '{}' added", name))
+    store.add_profile(&name, config).map_err(|e| e.to_string())?;
+    Ok(format!("Created '{}'", name))
 }
 
 #[tauri::command]
 fn delete_profile(name: String) -> Result<String, String> {
     let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store
-        .delete_profile(&name)
-        .map_err(|e| e.to_string())?;
-    Ok(format!("Profile '{}' deleted", name))
+    store.delete_profile(&name).map_err(|e| e.to_string())?;
+    Ok(format!("Deleted '{}'", name))
 }
 
 #[tauri::command]
 fn switch_profile(name: String) -> Result<String, String> {
     let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store
-        .switch_profile(&name)
-        .map_err(|e| e.to_string())?;
-    Ok(format!("Switched to profile '{}'", name))
+    store.switch_profile(&name).map_err(|e| e.to_string())?;
+    Ok(format!("Switched to '{}'", name))
 }
 
 #[tauri::command]
-fn switch_profile_stop(state: State<AppState>, name: String) -> Result<String, String> {
-    // Stop if running, switch profile
-    {
-        let mut proxy = state.proxy.lock().unwrap();
-        if proxy.is_running() {
-            proxy.stop().map_err(|e| e.to_string())?;
-            *state.started_at.lock().unwrap() = None;
-        }
+fn switch_profile_stop(name: String, state: State<AppState>) -> Result<String, String> {
+    let mut proxy = state.proxy.lock().unwrap();
+    if proxy.is_running() {
+        proxy.stop()?;
+        *state.started_at.lock().unwrap() = None;
     }
+    drop(proxy);
+
     let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
     store.switch_profile(&name).map_err(|e| e.to_string())?;
     Ok(format!("Switched to '{}'", name))
@@ -156,68 +98,25 @@ fn switch_profile_stop(state: State<AppState>, name: String) -> Result<String, S
 
 #[tauri::command]
 fn get_traffic() -> Result<String, String> {
-    use std::io::Read;
-    use std::net::TcpStream;
-    use std::time::{Duration, Instant};
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .map_err(|e| format!("http client: {}", e))?;
 
-    let mut stream = TcpStream::connect_timeout(
-        &"127.0.0.1:9097".to_socket_addrs().unwrap().next().unwrap(),
-        Duration::from_secs(2),
-    )
-    .map_err(|e| format!("connect clash_api: {}", e))?;
-    stream
-        .set_read_timeout(Some(Duration::from_millis(500)))
-        .ok();
-    let req = format!(
-        "GET /traffic?token=shado HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nConnection: close\r\n\r\n"
-    );
-    use std::io::Write;
-    stream.write_all(req.as_bytes()).map_err(|e| format!("send: {}", e))?;
-    stream.flush().ok();
+    let resp = client
+        .get("http://127.0.0.1:9097/connections?token=shado")
+        .send()
+        .map_err(|e| format!("connections req: {}", e))?;
 
-    // Read SSE data for up to 3s — retry on timeout, collect last event
-    let deadline = Instant::now() + Duration::from_secs(3);
-    let mut body = String::new();
-    let mut buf = [0u8; 4096];
-    while Instant::now() < deadline {
-        match stream.read(&mut buf) {
-            Ok(0) => break, // EOF
-            Ok(n) => {
-                body.push_str(&String::from_utf8_lossy(&buf[..n]));
-            }
-            Err(ref e)
-                if e.kind() == std::io::ErrorKind::WouldBlock
-                    || e.kind() == std::io::ErrorKind::TimedOut =>
-            {
-                continue; // timeout — keep reading, data may arrive later
-            }
-            Err(_) => break,
-        }
+    if !resp.status().is_success() {
+        return Err(format!("bad status: {}", resp.status()));
     }
 
-    // Find headers end
-    let body = match body.find("\r\n\r\n") {
-        Some(i) => &body[i + 4..],
-        None => &body,
-    };
+    let body: serde_json::Value = resp.json().map_err(|e| format!("parse: {}", e))?;
+    let up = body["uploadTotal"].as_u64().unwrap_or(0);
+    let down = body["downloadTotal"].as_u64().unwrap_or(0);
 
-    // Find last data line (trailing SSE)
-    let mut last_up = 0u64;
-    let mut last_down = 0u64;
-    for line in body.lines() {
-        let trimmed = line.trim();
-        if let Some(json_str) = trimmed
-            .strip_prefix("data: ")
-            .or_else(|| trimmed.strip_prefix("data:"))
-        {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str.trim()) {
-                last_up = v["up"].as_u64().unwrap_or(last_up);
-                last_down = v["down"].as_u64().unwrap_or(last_down);
-            }
-        }
-    }
-
-    Ok(format!(r#"{{"up":{},"down":{}}}"#, last_up, last_down))
+    Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down))
 }
 
 #[tauri::command]
@@ -242,23 +141,37 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
         .map_err(|e| format!("http client: {}", e))?;
 
     let target = "http://www.gstatic.com/generate_204";
-    let start = Instant::now();
-    let resp = client
-        .get(target)
-        .send()
-        .map_err(|e| format!("request failed: {}", e))?;
-    let elapsed = start.elapsed();
-    let status = resp.status();
+    let count = 5;
+    let mut times = Vec::with_capacity(count as usize);
 
-    if !status.is_success() && status.as_u16() != 204 {
-        return Err(format!("bad status: {}", status));
+    for i in 0..count {
+        let start = Instant::now();
+        let resp = client
+            .get(target)
+            .send()
+            .map_err(|e| format!("ping #{} failed: {}", i + 1, e))?;
+        let elapsed = start.elapsed();
+        let status = resp.status();
+        if !status.is_success() && status.as_u16() != 204 {
+            return Err(format!("bad status on ping #{}: {}", i + 1, status));
+        }
+        times.push(elapsed);
     }
-    let us = elapsed.as_micros();
-    if us < 1000 {
-        Ok("<1ms".into())
-    } else {
-        Ok(format!("{:.1}ms", us as f64 / 1000.0))
-    }
+
+    let us: Vec<u64> = times.iter().map(|t| t.as_micros() as u64).collect();
+    let min = us.iter().min().copied().unwrap_or(0);
+    let max = us.iter().max().copied().unwrap_or(0);
+    let avg = us.iter().sum::<u64>() / us.len() as u64;
+
+    let fmt = |us: u64| -> String {
+        if us < 1000 {
+            format!("<1ms")
+        } else {
+            format!("{:.0}ms", us as f64 / 1000.0)
+        }
+    };
+
+    Ok(format!("avg {} | min {} | max {}", fmt(avg), fmt(min), fmt(max)))
 }
 
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
