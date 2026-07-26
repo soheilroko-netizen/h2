@@ -60,13 +60,9 @@ async function updateServerInfo() {
 
 async function doPing() {
   try {
-    const config = await invoke<Config>('get_config');
     const pingEl = document.getElementById('ping-value')!;
     pingEl.textContent = 'Pinging...';
-    const ms = await invoke<string>('ping_server', {
-      address: config.server_address,
-      port: config.stls_port,
-    });
+    const ms = await invoke<string>('real_ping');
     pingEl.textContent = ms;
   } catch (err) {
     document.getElementById('ping-value')!.textContent = 'TIMEOUT';
@@ -141,8 +137,6 @@ async function updateStatus() {
 }
 
 async function startProxy() {
-  // Ping before connect (avoid tunnel interference)
-  await doPing();
   try {
     const msg = await invoke<string>('start_proxy');
     showMessage(msg, 'success');

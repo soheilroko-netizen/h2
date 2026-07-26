@@ -91,43 +91,52 @@ fn switch_profile(name: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn ping_server(address: String, port: u16) -> Result<String, String> {
-    use std::net::TcpStream;
-    use std::time::Instant;
-    let addr = format!("{}:{}", address, port);
-    let socket_addrs = addr
-        .to_socket_addrs()
-        .map_err(|e| format!("DNS fail: {}", e))?
-        .collect::<Vec<_>>();
-    if socket_addrs.is_empty() {
-        return Err("No IP resolved".into());
+fn switch_profile_stop(state: State<AppState>, name: String) -> Result<String, String> {
+    // Stop if running, switch profile
+    {
+        let mut proxy = state.proxy.lock().unwrap();
+        if proxy.is_running() {
+            proxy.stop().map_err(|e| e.to_string())?;
+            *state.started_at.lock().unwrap() = None;
+        }
     }
-    let start = Instant::now();
-    TcpStream::connect_timeout(&socket_addrs[0], std::time::Duration::from_secs(5))
-        .map_err(|e| format!("Connect fail: {}", e))?;
-    let us = start.elapsed().as_micros();
-    if us < 1000 {
-        Ok(format!("<1ms"))
-    } else {
-        Ok(format!("{:.1}ms", us as f64 / 1000.0))
-    }
+    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
+    store.switch_profile(&name).map_err(|e| e.to_string())?;
+    Ok(format!("Switched to '{}'", name))
 }
 
 #[tauri::command]
 fn get_traffic() -> Result<String, String> {
-    use std::io::{BufRead, BufReader};
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
 
-    let url = "http://127.0.0.1:9097/traffic?token=shado";
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
-        .build()
-        .map_err(|e| format!("HTTP client: {}", e))?;
-    let resp = client
-        .get(url)
-        .send()
-        .map_err(|e| format!("traffic req: {}", e))?;
-    // SSE never closes, read first line only
-    let mut reader = BufReader::new(resp);
+    let mut stream = TcpStream::connect_timeout(
+        &"127.0.0.1:9097".to_socket_addrs().unwrap().next().unwrap(),
+        Duration::from_secs(2),
+    )
+    .map_err(|e| format!("connect clash_api: {}", e))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(3)))
+        .ok();
+    let req = format!(
+        "GET /traffic?token=shado HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nConnection: close\r\n\r\n"
+    );
+    stream.write_all(req.as_bytes()).map_err(|e| format!("send: {}", e))?;
+    stream.flush().ok();
+
+    let mut reader = BufReader::new(&mut stream);
+    // Read response headers (discard until blank line)
+    loop {
+        let mut header = String::new();
+        reader
+            .read_line(&mut header)
+            .map_err(|e| format!("read header: {}", e))?;
+        if header.trim().is_empty() {
+            break;
+        }
+    }
+    // Read first SSE data line
     let mut line = String::new();
     reader
         .read_line(&mut line)
@@ -136,7 +145,6 @@ fn get_traffic() -> Result<String, String> {
     if trimmed.is_empty() {
         return Err("no data".into());
     }
-    // SSE lines are "data: {json}", strip prefix
     let json_str = trimmed
         .strip_prefix("data: ")
         .unwrap_or(trimmed)
@@ -160,18 +168,35 @@ fn get_uptime(state: State<AppState>) -> Result<u64, String> {
 }
 
 #[tauri::command]
-fn switch_profile_stop(state: State<AppState>, name: String) -> Result<String, String> {
-    // Stop if running, switch profile, return status
-    {
-        let mut proxy = state.proxy.lock().unwrap();
-        if proxy.is_running() {
-            proxy.stop().map_err(|e| e.to_string())?;
-            *state.started_at.lock().unwrap() = None;
-        }
+fn real_ping(state: State<AppState>) -> Result<String, String> {
+    let running = state.proxy.lock().unwrap().is_running();
+    if !running {
+        return Err("VPN not connected".into());
     }
-    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.switch_profile(&name).map_err(|e| e.to_string())?;
-    Ok(format!("Switched to '{}'", name))
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| format!("http client: {}", e))?;
+
+    let target = "http://www.gstatic.com/generate_204";
+    let start = Instant::now();
+    let resp = client
+        .get(target)
+        .send()
+        .map_err(|e| format!("request failed: {}", e))?;
+    let elapsed = start.elapsed();
+    let status = resp.status();
+
+    if !status.is_success() && status.as_u16() != 204 {
+        return Err(format!("bad status: {}", status));
+    }
+    let us = elapsed.as_micros();
+    if us < 1000 {
+        Ok("<1ms".into())
+    } else {
+        Ok(format!("{:.1}ms", us as f64 / 1000.0))
+    }
 }
 
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -285,7 +310,7 @@ fn main() {
             delete_profile,
             switch_profile,
             switch_profile_stop,
-            ping_server,
+            real_ping,
             get_traffic,
             get_uptime,
         ])
