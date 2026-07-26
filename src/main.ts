@@ -141,6 +141,8 @@ async function startProxy() {
     const msg = await invoke<string>('start_proxy');
     showMessage(msg, 'success');
     await updateStatus();
+    // Auto ping after connect
+    setTimeout(doPing, 1500);
   } catch (err) {
     showMessage('Failed to start: ' + err, 'error');
   }

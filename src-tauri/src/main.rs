@@ -1,6 +1,41 @@
 // main.rs - Tauri app entry with commands
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+// ── Single-instance guard via named mutex (Windows) ──────────────────
+// Prevents launching a second instance while one is already running.
+#[cfg(target_os = "windows")]
+fn check_single_instance() {
+    use std::ffi::CString;
+    use std::ptr;
+    extern "system" {
+        fn CreateMutexA(
+            lpMutexAttributes: *mut std::ffi::c_void,
+            bInitialOwner: i32,
+            lpName: *const i8,
+        ) -> *mut std::ffi::c_void;
+        fn GetLastError() -> u32;
+    }
+    // Create a named mutex — if it already exists (ERROR_ALREADY_EXISTS),
+    // another instance is running, so exit.
+    let name = CString::new("Local\\stls-single-instance-mutex").unwrap();
+    unsafe {
+        let handle = CreateMutexA(ptr::null_mut(), 0, name.as_ptr());
+        if handle.is_null() {
+            // Can't create mutex — weird state, proceed anyway
+            return;
+        }
+        let err = GetLastError();
+        if err == 183 {
+            // ERROR_ALREADY_EXISTS
+            // Bring existing window to front via a second named event
+            eprintln!("[stls] Another instance is already running.");
+            std::process::exit(0);
+        }
+    }
+}
+#[cfg(not(target_os = "windows"))]
+fn check_single_instance() {}
+
 use std::sync::Mutex;
 use std::net::ToSocketAddrs;
 use std::time::Instant;
@@ -49,7 +84,9 @@ fn stop_proxy(state: State<AppState>) -> Result<String, String> {
 
 #[tauri::command]
 fn get_config() -> Result<Config, String> {
-    Config::load().map_err(|e| e.to_string())
+    // Return active profile config, not standalone config.json
+    let store = ProfileStore::load().map_err(|e| e.to_string())?;
+    store.get_active_config().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -107,7 +144,7 @@ fn switch_profile_stop(state: State<AppState>, name: String) -> Result<String, S
 
 #[tauri::command]
 fn get_traffic() -> Result<String, String> {
-    use std::io::{BufRead, BufReader, Write};
+    use std::io::{Read, Write};
     use std::net::TcpStream;
     use std::time::Duration;
 
@@ -125,37 +162,40 @@ fn get_traffic() -> Result<String, String> {
     stream.write_all(req.as_bytes()).map_err(|e| format!("send: {}", e))?;
     stream.flush().ok();
 
-    let mut reader = BufReader::new(&mut stream);
-    // Read response headers (discard until blank line)
-    loop {
-        let mut header = String::new();
-        reader
-            .read_line(&mut header)
-            .map_err(|e| format!("read header: {}", e))?;
-        if header.trim().is_empty() {
-            break;
+    // Read entire response until EOF — handles chunked + identity encoding
+    let mut buf = Vec::new();
+    Read::read_to_end(&mut stream, &mut buf)
+        .map_err(|e| format!("read response: {}", e))?;
+    let response = String::from_utf8_lossy(&buf);
+
+    // Skip HTTP headers
+    let body_start = response.find("\r\n\r\n").map(|i| i + 4).unwrap_or(0);
+    let body = &response[body_start..];
+
+    // Find first SSE data line
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if let Some(json_str) = trimmed
+            .strip_prefix("data: ")
+            .or_else(|| trimmed.strip_prefix("data:"))
+        {
+            let json_str = json_str.trim();
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str) {
+                let up = v["up"].as_u64().unwrap_or(0);
+                let down = v["down"].as_u64().unwrap_or(0);
+                return Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down));
+            }
         }
     }
-    // Read first SSE data line
-    let mut line = String::new();
-    reader
-        .read_line(&mut line)
-        .map_err(|e| format!("read traffic: {}", e))?;
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return Err("no data".into());
+
+    // Fallback — try parse whole body as JSON
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(body.trim()) {
+        let up = v["up"].as_u64().unwrap_or(0);
+        let down = v["down"].as_u64().unwrap_or(0);
+        return Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down));
     }
-    let json_str = trimmed
-        .strip_prefix("data: ")
-        .unwrap_or(trimmed)
-        .trim();
-    let mut up: u64 = 0;
-    let mut down: u64 = 0;
-    if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str) {
-        up = v["up"].as_u64().unwrap_or(0);
-        down = v["down"].as_u64().unwrap_or(0);
-    }
-    Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down))
+
+    Ok(r#"{"up":0,"down":0}"#.into())
 }
 
 #[tauri::command]
@@ -209,6 +249,8 @@ fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::
 }
 
 fn main() {
+    check_single_instance();
+
     let panic_log = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.to_path_buf()))

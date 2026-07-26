@@ -71,22 +71,7 @@ fn get_active_interfaces() -> Result<Vec<String>> {
 }
 
 fn save_dns_config() -> Result<()> {
-    let ifaces = get_active_interfaces()?;
-    for name in &ifaces {
-        let out = no_window(
-            Command::new("netsh")
-                .arg("interface")
-                .arg("ip")
-                .arg("show")
-                .arg("dns")
-                .arg(name)
-        )
-            .output()
-            .context(format!("failed to read DNS for {name}"))?;
-        let text = String::from_utf8_lossy(&out.stdout);
-        let temp = std::env::temp_dir().join(format!("stls_dns_{}.txt", name.replace(' ', "_")));
-        std::fs::write(&temp, &*text).ok();
-    }
+    // No-op: restore just sets DHCP, doesn't need saved state
     Ok(())
 }
 

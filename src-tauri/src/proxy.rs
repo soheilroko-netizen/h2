@@ -190,8 +190,6 @@ struct SbOutbound {
     #[serde(skip_serializing_if = "Option::is_none")]
     detour: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    udp: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     udp_over_tcp: Option<SbUdpOverTcp>,
 }
 
@@ -429,8 +427,11 @@ impl ProxyManager {
         let c = &self.config;
 
         // Resolve STLS server IP to bypass from TUN (prevents loop)
-        let stls_ips: Vec<String> = resolve_hostname(&c.server_address)
-            .context("failed to resolve ShadowTLS server address")?;
+        // Fall back to hostname as-is if DNS fails — sing-box resolves at runtime
+        let stls_ips: Vec<String> = resolve_hostname(&c.server_address).unwrap_or_else(|_| {
+            eprintln!("[stls] DNS resolution failed for {} — using hostname directly", c.server_address);
+            vec![]
+        });
 
         let bypass_cidrs: Vec<String> = if stls_ips.is_empty() {
             vec!["198.18.0.0/15".into()]
@@ -540,7 +541,7 @@ impl ProxyManager {
                 version: None,
                 tls: None,
                 detour: Some("shadowtls-out".into()),
-                udp: None,
+                // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
                 udp_over_tcp: Some(SbUdpOverTcp { enabled: true }),
             },
             SbOutbound {
@@ -556,7 +557,7 @@ impl ProxyManager {
                     insecure: false,
                 }),
                 detour: None,
-                udp: None,
+                // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
                 udp_over_tcp: None,
                 method: None,
             },
@@ -570,7 +571,7 @@ impl ProxyManager {
                 version: None,
                 tls: None,
                 detour: None,
-                udp: None,
+                // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
                 udp_over_tcp: None,
             },
         ]
@@ -583,27 +584,24 @@ impl ProxyManager {
     }
 
     fn get_bundled_or_download(&self) -> Result<PathBuf> {
-        if let Ok(exe_path) = std::env::current_exe() {
-            let bundled = exe_path.parent().unwrap_or(Path::new(".")).join("sing-box.exe");
-            if bundled.exists() {
-                println!("[stls] using bundled sing-box: {}", bundled.display());
-                return Ok(bundled);
+        let candidates = [
+            // Next to exe
+            std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("sing-box.exe"))),
+            // Next to exe/resources (Tauri bundle layout)
+            std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("resources").join("sing-box.exe"))),
+            // Next to exe/bin (Tauri resources with bin/ prefix)
+            std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("bin").join("sing-box.exe"))),
+            // Relative paths
+            Some(PathBuf::from("bin").join("sing-box.exe")),
+            Some(PathBuf::from("sing-box.exe")),
+            // Cached in config dir
+            Some(self.sing_box_exe()),
+        ];
+        for path in candidates.iter().flatten() {
+            if path.exists() {
+                println!("[stls] using sing-box: {}", path.display());
+                return Ok(path.clone());
             }
-        }
-        let bundled = PathBuf::from("bin").join("sing-box.exe");
-        if bundled.exists() {
-            println!("[stls] using bundled sing-box: {}", bundled.display());
-            return Ok(bundled);
-        }
-        let bundled = PathBuf::from("sing-box.exe");
-        if bundled.exists() {
-            println!("[stls] using bundled sing-box: {}", bundled.display());
-            return Ok(bundled);
-        }
-        let cached = self.sing_box_exe();
-        if cached.exists() {
-            println!("[stls] using cached sing-box: {}", cached.display());
-            return Ok(cached);
         }
         println!("[stls] no bundled sing-box found, downloading...");
         self.download_sing_box()
