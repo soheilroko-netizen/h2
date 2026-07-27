@@ -550,7 +550,7 @@ impl ProxyManager {
                     });
                 }
             }
-            cfg.route.as_mut().unwrap().rules.as_mut().unwrap().splice(0..2, split_rules);
+            cfg.route.as_mut().unwrap().rules.as_mut().unwrap().splice(2..2, split_rules);
         }
 
         Ok(cfg)
