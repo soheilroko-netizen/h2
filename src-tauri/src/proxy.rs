@@ -539,6 +539,8 @@ impl ProxyManager {
                         domain: None,
                         domain_suffix: Some(vec![pattern[1..].to_string()]),
                         domain_keyword: None,
+                        process_name: None,
+                        process_path_regex: None,
                         outbound: Some("direct".into()),
                     });
                 } else if pattern.contains("*") {
@@ -549,6 +551,8 @@ impl ProxyManager {
                         domain: None,
                         domain_suffix: None,
                         domain_keyword: Some(vec![pattern.replace("*", "")]),
+                        process_name: None,
+                        process_path_regex: None,
                         outbound: Some("direct".into()),
                     });
                 } else {
@@ -559,6 +563,8 @@ impl ProxyManager {
                         domain: Some(vec![pattern.clone()]),
                         domain_suffix: None,
                         domain_keyword: None,
+                        process_name: None,
+                        process_path_regex: None,
                         outbound: Some("direct".into()),
                     });
                 }
