@@ -427,7 +427,7 @@ impl ProxyManager {
             }
         }
 
-        Ok(SbConfig {
+        let mut cfg = SbConfig {
             log: SbLog {
                 disabled: false,
                 level: "info".into(),
