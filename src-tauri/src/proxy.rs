@@ -111,6 +111,12 @@ struct SbRouteRule {
     #[serde(skip_serializing_if = "Option::is_none")]
     ip_cidr: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    domain: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    domain_suffix: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    domain_keyword: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     outbound: Option<String>,
 }
 
@@ -474,18 +480,27 @@ impl ProxyManager {
                         action: Some("sniff".into()),
                         protocol: None,
                         ip_cidr: None,
+                        domain: None,
+                        domain_suffix: None,
+                        domain_keyword: None,
                         outbound: None,
                     },
                     SbRouteRule {
                         action: Some("hijack-dns".into()),
                         protocol: Some("dns".into()),
                         ip_cidr: None,
+                        domain: None,
+                        domain_suffix: None,
+                        domain_keyword: None,
                         outbound: None,
                     },
                     SbRouteRule {
                         action: None,
                         protocol: None,
                         ip_cidr: Some(bypass_cidrs),
+                        domain: None,
+                        domain_suffix: None,
+                        domain_keyword: None,
                         outbound: Some("direct".into()),
                     },
                 ]),
@@ -498,13 +513,42 @@ impl ProxyManager {
         // Add split tunnel rules if configured
         if !c.split_rules.is_empty() {
             let mut split_rules = Vec::new();
-            for _split_rule in &c.split_rules {
-                split_rules.push(SbRouteRule {
-                    action: None,
-                    protocol: None,
-                    ip_cidr: None,
-                    outbound: Some("direct".into()),
-                });
+            for split_rule in &c.split_rules {
+                let pattern = &split_rule.pattern;
+                // Wildcard: *.example.com -> domain_suffix ".example.com"
+                // Exact: example.com -> domain ["example.com"]
+                // Keyword: contains "example" -> domain_keyword ["example"]
+                if pattern.starts_with("*.") {
+                    split_rules.push(SbRouteRule {
+                        action: None,
+                        protocol: None,
+                        ip_cidr: None,
+                        domain: None,
+                        domain_suffix: Some(vec![pattern[1..].to_string()]),
+                        domain_keyword: None,
+                        outbound: Some("direct".into()),
+                    });
+                } else if pattern.contains("*") {
+                    split_rules.push(SbRouteRule {
+                        action: None,
+                        protocol: None,
+                        ip_cidr: None,
+                        domain: None,
+                        domain_suffix: None,
+                        domain_keyword: Some(vec![pattern.replace("*", "")]),
+                        outbound: Some("direct".into()),
+                    });
+                } else {
+                    split_rules.push(SbRouteRule {
+                        action: None,
+                        protocol: None,
+                        ip_cidr: None,
+                        domain: Some(vec![pattern.clone()]),
+                        domain_suffix: None,
+                        domain_keyword: None,
+                        outbound: Some("direct".into()),
+                    });
+                }
             }
             cfg.route.as_mut().unwrap().rules.as_mut().unwrap().splice(0..2, split_rules);
         }
