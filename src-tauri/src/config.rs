@@ -21,6 +21,13 @@ pub struct Config {
     pub socks5_port: u16,
     #[serde(default)]
     pub mtu: Option<u32>,
+    #[serde(default)]
+    pub split_rules: Vec<SplitRule>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SplitRule {
+    pub pattern: String,
 }
 
 fn default_server_address() -> String { "ns.baft.uk".to_string() }
@@ -52,6 +59,7 @@ impl Default for Config {
             stls_sni: "dl.google.com".to_string(),
             socks5_port: 1080,
             mtu: None,
+            split_rules: vec![],
         }
     }
 }

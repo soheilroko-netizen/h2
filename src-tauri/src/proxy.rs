@@ -493,7 +493,23 @@ impl ProxyManager {
                 auto_detect_interface: Some(true),
                 default_domain_resolver: Some("remote-doh".into()),
             }),
-        })
+        };
+
+        // Add split tunnel rules if configured
+        if !c.split_rules.is_empty() {
+            let mut split_rules = Vec::new();
+            for _split_rule in &c.split_rules {
+                split_rules.push(SbRouteRule {
+                    action: None,
+                    protocol: None,
+                    ip_cidr: None,
+                    outbound: Some("direct".into()),
+                });
+            }
+            cfg.route.as_mut().unwrap().rules.as_mut().unwrap().splice(0..2, split_rules);
+        }
+
+        Ok(cfg)
     }
 
     // ── shared outbounds (SS + STLS + direct) ─────────────────────
