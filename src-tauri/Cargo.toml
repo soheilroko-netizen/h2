@@ -1,12 +1,12 @@
 [package]
-name = "stls"
+name = "dakal-tls"
 version = "5.0.0"
 edition = "2021"
-description = "stls - ShadowTLS + Shadowsocks VPN with GUI"
+description = "dakal-tls - ShadowTLS + Shadowsocks VPN with GUI"
 license = "MIT"
 
 [[bin]]
-name = "stls"
+name = "dakal-tls"
 path = "src/main.rs"
 
 [build-dependencies]

@@ -192,7 +192,7 @@ pub struct ProxyManager {
 impl ProxyManager {
     pub fn new() -> Result<Self> {
         let config = Config::load()?;
-        let config_dir = ProjectDirs::from("com", "stls", "stls")
+        let config_dir = ProjectDirs::from("com", "dakal-tls", "dakal-tls")
             .map(|d| d.config_dir().to_path_buf())
             .unwrap_or_else(|| PathBuf::from("."));
 
@@ -204,7 +204,7 @@ impl ProxyManager {
             config,
             saved_dns: Arc::new(Mutex::new(None)),
             active_mode: Arc::new(Mutex::new(None)),
-            debug_log_path: config_dir.join("stls-debug.log"),
+            debug_log_path: config_dir.join("dakal-tls-debug.log"),
         })
     }
 
@@ -436,7 +436,7 @@ impl ProxyManager {
             experimental: Some(SbExperimental {
                 clash_api: Some(SbClashApi {
                     external_controller: "127.0.0.1:9097".into(),
-                    secret: "shado".into(),
+                    secret: "dakal".into(),
                     default_mode: "rule".into(),
                 }),
             }),
