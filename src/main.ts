@@ -9,6 +9,12 @@ interface Config {
   stls_password: string;
   stls_sni: string;
   socks5_port: number;
+  mtu: number | null;
+  split_rules: SplitRule[];
+}
+
+interface SplitRule {
+  pattern: string;
 }
 
 interface Profile {
@@ -246,6 +252,10 @@ async function loadConfig() {
       config.stls_sni;
     (document.getElementById('socks5_port') as HTMLInputElement).value =
       config.socks5_port.toString();
+    (document.getElementById('mtu') as HTMLInputElement).value =
+      config.mtu ? config.mtu.toString() : '';
+    (document.getElementById('split_rules') as HTMLTextAreaElement).value =
+      config.split_rules.map((r) => r.pattern).join('\n');
   } catch (err) {
     showSettingsMessage('Failed to load config: ' + err, 'error');
   }
@@ -253,6 +263,15 @@ async function loadConfig() {
 
 async function saveConfig(event: Event) {
   event.preventDefault();
+
+  const mtuRaw = (document.getElementById('mtu') as HTMLInputElement).value;
+  const mtuVal = mtuRaw ? parseInt(mtuRaw) : null;
+  const splitRaw = (document.getElementById('split_rules') as HTMLTextAreaElement).value;
+  const splitRules = splitRaw
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .map((s) => ({ pattern: s }));
 
   const config: Config = {
     server_address: (
@@ -274,6 +293,8 @@ async function saveConfig(event: Event) {
     socks5_port: parseInt(
       (document.getElementById('socks5_port') as HTMLInputElement).value
     ),
+    mtu: mtuVal,
+    split_rules: splitRules,
   };
 
   try {
@@ -302,6 +323,15 @@ async function newProfile() {
   const name = prompt('Enter profile name:');
   if (!name || name.trim() === '') return;
 
+  const mtuRaw = (document.getElementById('mtu') as HTMLInputElement).value;
+  const mtuVal = mtuRaw ? parseInt(mtuRaw) : null;
+  const splitRaw = (document.getElementById('split_rules') as HTMLTextAreaElement).value;
+  const splitRules = splitRaw
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .map((s) => ({ pattern: s }));
+
   const config: Config = {
     server_address: (
       document.getElementById('server_address') as HTMLInputElement
@@ -322,6 +352,8 @@ async function newProfile() {
     socks5_port: parseInt(
       (document.getElementById('socks5_port') as HTMLInputElement).value
     ),
+    mtu: mtuVal,
+    split_rules: splitRules,
   };
 
   try {
@@ -350,6 +382,25 @@ async function deleteProfile() {
     showSettingsMessage('Profile deleted', 'success');
   } catch (err) {
     showSettingsMessage('Failed to delete: ' + err, 'error');
+  }
+}
+
+// ── Log viewer ────────────────────────────────────────────────
+
+async function showLogView() {
+  document.getElementById('main-view')!.style.display = 'none';
+  document.getElementById('settings-view')!.style.display = 'none';
+  document.getElementById('log-view')!.style.display = 'block';
+  await setWindowSize(560, 500);
+  refreshLog();
+}
+
+async function refreshLog() {
+  try {
+    const log = await invoke<string>('get_log');
+    document.getElementById('log-content')!.textContent = log;
+  } catch (err) {
+    document.getElementById('log-content')!.textContent = 'Error: ' + err;
   }
 }
 
@@ -397,7 +448,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document
     .getElementById('btn-main-settings')
     ?.addEventListener('click', showSettingsView);
+  document
+    .getElementById('btn-main-log')
+    ?.addEventListener('click', showLogView);
   document.getElementById('btn-back')?.addEventListener('click', showMainView);
+  document
+    .getElementById('btn-back-from-log')
+    ?.addEventListener('click', showMainView);
+  document
+    .getElementById('btn-refresh-log')
+    ?.addEventListener('click', refreshLog);
   document
     .getElementById('btn-ping')
     ?.addEventListener('click', doPing);

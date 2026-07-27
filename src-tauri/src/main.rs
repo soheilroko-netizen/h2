@@ -203,6 +203,16 @@ fn get_uptime(state: State<AppState>) -> Result<u64, String> {
 }
 
 #[tauri::command]
+fn get_log(state: State<AppState>) -> Result<String, String> {
+    let proxy = state.proxy.lock().unwrap();
+    if let Some(f) = std::fs::read_to_string(&proxy.debug_log_path).ok() {
+        Ok(f)
+    } else {
+        Ok("No log available".to_string())
+    }
+}
+
+#[tauri::command]
 fn real_ping(state: State<AppState>) -> Result<String, String> {
     let running = state.proxy.lock().unwrap().is_running();
     if !running {
@@ -350,6 +360,7 @@ fn main() {
             real_ping,
             get_traffic,
             get_uptime,
+            get_log,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");
