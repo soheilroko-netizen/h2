@@ -118,6 +118,19 @@ async function updateTraffic() {
   }
 }
 
+async function updateTotalTraffic() {
+  const el = document.getElementById('total-traffic-value')!;
+  try {
+    const raw = await invoke<string>('get_total_traffic');
+    const v = JSON.parse(raw);
+    const up = formatBytes(v.up);
+    const down = formatBytes(v.down);
+    el.textContent = `↑ ${up}  ↓ ${down}`;
+  } catch {
+    el.textContent = '↑ 0  ↓ 0';
+  }
+}
+
 async function updateStatus() {
   try {
     const isRunning = await invoke<boolean>('get_status');
@@ -425,9 +438,11 @@ async function startPolling() {
       const running = await invoke<boolean>('get_status');
       if (running) {
         await updateTraffic();
+        await updateTotalTraffic();
         await updateUptime();
       } else {
         document.getElementById('traffic-value')!.textContent = '↑ 0  ↓ 0';
+        document.getElementById('total-traffic-value')!.textContent = '↑ 0  ↓ 0';
         document.getElementById('uptime-value')!.textContent = '-';
       }
     } catch {

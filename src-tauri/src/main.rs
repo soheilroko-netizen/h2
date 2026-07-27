@@ -15,17 +15,13 @@ fn check_single_instance() {
         ) -> *mut std::ffi::c_void;
         fn GetLastError() -> u32;
     }
-    // Create a named mutex — if it already exists (ERROR_ALREADY_EXISTS),
-    // another instance is running, so exit.
     let name = CString::new("Local\\stls-single-instance-mutex").unwrap();
-    // SAFETY: trivially safe — passing a valid CString, checking for errors
     let handle = unsafe { CreateMutexA(ptr::null_mut(), 0, name.as_ptr()) };
     if handle.is_null() {
         eprintln!("[stls] CreateMutexA failed");
         return;
     }
     const ERROR_ALREADY_EXISTS: u32 = 183;
-    // SAFETY: GetLastError is safe to call after CreateMutexA
     if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
         println!("[stls] Another instance is already running — exiting.");
         std::process::exit(0);
@@ -54,21 +50,88 @@ struct AppState {
     started_at: Mutex<Option<Instant>>,
 }
 
+// ── Tray menu rebuild helper ───────────────────────────────────
+
+fn update_tray_state(app: &tauri::AppHandle) {
+    let running = {
+        let state: tauri::State<AppState> = app.state::<AppState>();
+        state.proxy.lock().unwrap().is_running()
+    };
+
+    let profile_name = ProfileStore::load()
+        .map(|s| s.active_profile)
+        .unwrap_or_else(|_| "dakal-tls".to_string());
+
+    let tooltip = if running {
+        format!("dakal-tls VPN — {} (connected)", profile_name)
+    } else {
+        "dakal-tls VPN".to_string()
+    };
+
+    // Build menu items
+    let show = MenuItemBuilder::with_id("show", "Show").build(app).unwrap();
+    let hide = MenuItemBuilder::with_id("hide", "Hide").build(app).unwrap();
+    let quit = MenuItemBuilder::with_id("quit", "Quit").build(app).unwrap();
+    let profile = MenuItemBuilder::with_id("profile", &profile_name)
+        .enabled(false)
+        .build(app)
+        .unwrap();
+
+    let menu = if running {
+        let disc = MenuItemBuilder::with_id("disconnect", "Disconnect")
+            .build(app)
+            .unwrap();
+        MenuBuilder::new(app)
+            .item(&profile)
+            .item(&disc)
+            .separator()
+            .item(&show)
+            .item(&hide)
+            .separator()
+            .item(&quit)
+            .build()
+            .unwrap()
+    } else {
+        let conn = MenuItemBuilder::with_id("connect", "Connect")
+            .build(app)
+            .unwrap();
+        MenuBuilder::new(app)
+            .item(&profile)
+            .item(&conn)
+            .separator()
+            .item(&show)
+            .item(&hide)
+            .separator()
+            .item(&quit)
+            .build()
+            .unwrap()
+    };
+
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_tooltip(&tooltip);
+        let _ = tray.set_menu(menu);
+    }
+}
+
 // ── Tauri commands ──────────────────────────────────────────────
 
 #[tauri::command]
-fn start_proxy(state: State<AppState>) -> Result<String, String> {
+fn start_proxy(app: tauri::AppHandle, state: State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
     let result = proxy.start().map_err(|e| e.to_string())?;
     *state.started_at.lock().unwrap() = Some(Instant::now());
+    drop(proxy);
+    update_tray_state(&app);
     Ok(result)
 }
 
 #[tauri::command]
-fn stop_proxy(state: State<AppState>) -> Result<String, String> {
+fn stop_proxy(app: tauri::AppHandle, state: State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
     let result = proxy.stop().map_err(|e| e.to_string())?;
     *state.started_at.lock().unwrap() = None;
+    drop(proxy);
+    update_tray_state(&app);
     Ok(result)
 }
 
@@ -85,7 +148,6 @@ fn get_config() -> Result<Config, String> {
 
 #[tauri::command]
 fn save_config(config: Config) -> Result<String, String> {
-    // Save to active profile, not standalone config.json
     let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
     store
         .update_active_config(config)
@@ -139,8 +201,6 @@ fn get_traffic() -> Result<String, String> {
     use std::net::TcpStream;
     use std::time::Duration;
 
-    // Connect to sing-box clash API /traffic SSE endpoint
-    // Response: stream of lines like {"up":123,"down":456}
     let mut stream = TcpStream::connect_timeout(
         &"127.0.0.1:9097".parse().map_err(|e| format!("addr: {}", e))?,
         Duration::from_secs(2),
@@ -156,7 +216,6 @@ fn get_traffic() -> Result<String, String> {
         .write_all(req.as_bytes())
         .map_err(|e| format!("write: {e}"))?;
 
-    // Read stream — collect everything for up to 1.5s, keep last valid JSON line
     let deadline = Instant::now() + Duration::from_millis(1500);
     let mut all_data = String::new();
     let mut buf = [0u8; 2048];
@@ -176,7 +235,6 @@ fn get_traffic() -> Result<String, String> {
         }
     }
 
-    // Find last line that looks like {"up":N,"down":N}
     let mut last_json: Option<(u64, u64)> = None;
     for line in all_data.lines() {
         let line = line.trim();
@@ -191,6 +249,40 @@ fn get_traffic() -> Result<String, String> {
 
     let (up, down) = last_json.unwrap_or((0, 0));
     Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down))
+}
+
+#[tauri::command]
+fn get_total_traffic() -> Result<String, String> {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let mut stream = match TcpStream::connect_timeout(
+        &"127.0.0.1:9097".parse().map_err(|e| format!("addr: {e}"))?,
+        Duration::from_secs(2),
+    ) {
+        Ok(s) => s,
+        Err(_) => return Ok(r#"{"up":0,"down":0}"#.into()),
+    };
+
+    stream.set_read_timeout(Some(Duration::from_millis(500))).ok();
+
+    let req = "GET /connections HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nAuthorization: Bearer dakal\r\nConnection: close\r\n\r\n";
+    let _ = stream.write_all(req.as_bytes());
+
+    let mut response = String::new();
+    let _ = stream.read_to_string(&mut response);
+
+    // Parse HTTP response, extract JSON body after \r\n\r\n
+    if let Some(body) = response.split("\r\n\r\n").nth(1) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
+            let up = v["upload_total"].as_u64().unwrap_or(0);
+            let down = v["download_total"].as_u64().unwrap_or(0);
+            return Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down));
+        }
+    }
+
+    Ok(r#"{"up":0,"down":0}"#.into())
 }
 
 #[tauri::command]
@@ -219,9 +311,6 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
         return Err("VPN not connected".into());
     }
 
-    // Two-request ping:
-    // 1st request warms up TLS handshake
-    // 2nd request measures established-connection latency only
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(3))
         .build()
@@ -229,12 +318,10 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
 
     let target = "http://www.gstatic.com/generate_204";
 
-    // Warmup request (discards result)
     if let Err(e) = client.get(target).send() {
         return Err(format!("warmup failed: {}", e));
     }
 
-    // Measure request (actual latency)
     let start = Instant::now();
     let resp = client.get(target).send().map_err(|e| format!("measure failed: {}", e))?;
     if !resp.status().is_success() && resp.status().as_u16() != 204 {
@@ -242,7 +329,6 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
     }
     let elapsed = start.elapsed();
 
-    // Return single ms value, like v2rayN
     let ms = (elapsed.as_micros() as f64 / 1000.0) as u64;
     Ok(format!("{}ms", ms))
 }
@@ -284,15 +370,27 @@ fn main() {
             let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let hide_item = MenuItemBuilder::with_id("hide", "Hide").build(app)?;
             let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+            let profile_item = MenuItemBuilder::with_id("profile", "dakal-tls")
+                .enabled(false)
+                .build(app)?;
+            let connect_item = MenuItemBuilder::with_id("connect", "Connect").build(app)?;
+            let disconnect_item = MenuItemBuilder::with_id("disconnect", "Disconnect")
+                .enabled(false)
+                .build(app)?;
 
             let menu = MenuBuilder::new(app)
+                .item(&profile_item)
+                .item(&connect_item)
+                .item(&disconnect_item)
+                .separator()
                 .item(&show_item)
                 .item(&hide_item)
                 .separator()
                 .item(&quit_item)
                 .build()?;
 
-            TrayIconBuilder::new()
+            let _tray = TrayIconBuilder::new()
+                .id("main")
                 .tooltip("dakal-tls VPN")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
@@ -309,7 +407,33 @@ fn main() {
                                 window.hide().ok();
                             }
                         }
+                        "connect" => {
+                            let state = app.state::<AppState>();
+                            let mut proxy = state.proxy.lock().unwrap();
+                            if !proxy.is_running() {
+                                let _ = proxy.start();
+                                *state.started_at.lock().unwrap() = Some(Instant::now());
+                            }
+                            drop(proxy);
+                            update_tray_state(app);
+                        }
+                        "disconnect" => {
+                            let state = app.state::<AppState>();
+                            let mut proxy = state.proxy.lock().unwrap();
+                            if proxy.is_running() {
+                                let _ = proxy.stop();
+                                *state.started_at.lock().unwrap() = None;
+                            }
+                            drop(proxy);
+                            update_tray_state(app);
+                        }
                         "quit" => {
+                            let state = app.state::<AppState>();
+                            let mut proxy = state.proxy.lock().unwrap();
+                            if proxy.is_running() {
+                                let _ = proxy.stop();
+                            }
+                            drop(proxy);
                             app.exit(0);
                         }
                         _ => {}
@@ -335,6 +459,9 @@ fn main() {
                 })
                 .build(app)?;
 
+            // Initial tray state (profile name + correct menu)
+            update_tray_state(&app.handle());
+
             create_main_window(&app.handle())?;
             Ok(())
         })
@@ -359,6 +486,7 @@ fn main() {
             switch_profile_stop,
             real_ping,
             get_traffic,
+            get_total_traffic,
             get_uptime,
             get_log,
         ])

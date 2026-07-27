@@ -14,6 +14,9 @@
     "core:window:allow-set-size",
     "core:event:default",
     "core:tray:default",
+    "core:tray:allow-set-tooltip",
+    "core:tray:allow-set-menu",
+    "core:tray:allow-set-icon",
     "shell:default",
     "opener:default"
   ]
