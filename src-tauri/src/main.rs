@@ -53,10 +53,9 @@ struct AppState {
 // ── Tray menu rebuild helper ───────────────────────────────────
 
 fn update_tray_state(app: &tauri::AppHandle) {
-    let running = {
-        let state: tauri::State<AppState> = app.state::<AppState>();
-        state.proxy.lock().unwrap().is_running()
-    };
+    let state: tauri::State<AppState> = app.state::<AppState>();
+    let running = state.proxy.lock().unwrap().is_running();
+    drop(state);
 
     let profile_name = ProfileStore::load()
         .map(|s| s.active_profile)
@@ -68,7 +67,6 @@ fn update_tray_state(app: &tauri::AppHandle) {
         "dakal-tls VPN".to_string()
     };
 
-    // Build menu items
     let show = MenuItemBuilder::with_id("show", "Show").build(app).unwrap();
     let hide = MenuItemBuilder::with_id("hide", "Hide").build(app).unwrap();
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app).unwrap();
@@ -108,8 +106,8 @@ fn update_tray_state(app: &tauri::AppHandle) {
     };
 
     if let Some(tray) = app.tray_by_id("main") {
-        let _ = tray.set_tooltip(&tooltip);
-        let _ = tray.set_menu(menu);
+        let _ = tray.set_tooltip(Some(&tooltip));
+        let _ = tray.set_menu(Some(menu));
     }
 }
 
@@ -390,7 +388,6 @@ fn main() {
                 .build()?;
 
             let _tray = TrayIconBuilder::new()
-                .id("main")
                 .tooltip("dakal-tls VPN")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
