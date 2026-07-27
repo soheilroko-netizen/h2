@@ -151,10 +151,10 @@ fn get_traffic() -> Result<String, String> {
         .set_read_timeout(Some(Duration::from_millis(800)))
         .map_err(|e| format!("set_read_timeout: {}", e))?;
 
-    let req = "GET /traffic HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nAuthorization: Bearer shado\r\nConnection: close\r\n\r\n";
+    let req = "GET /traffic HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nAuthorization: Bearer dakal\r\nConnection: close\r\n\r\n";
     stream
         .write_all(req.as_bytes())
-        .map_err(|e| format!("write: {}", e))?;
+        .map_err(|e| format!("write: {e}"))?;
 
     // Read stream — collect everything for up to 1.5s, keep last valid JSON line
     let deadline = Instant::now() + Duration::from_millis(1500);
@@ -293,7 +293,7 @@ fn main() {
                 .build()?;
 
             TrayIconBuilder::new()
-                .tooltip("shado VPN")
+                .tooltip("dakal-tls VPN")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .on_menu_event(|app, event| {

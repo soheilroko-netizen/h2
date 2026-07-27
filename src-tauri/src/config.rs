@@ -28,6 +28,10 @@ pub struct Config {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SplitRule {
     pub pattern: String,
+    #[serde(default)]
+    pub process_names: Vec<String>,
+    #[serde(default)]
+    pub folder_paths: Vec<String>,
 }
 
 fn default_server_address() -> String { "ns.baft.uk".to_string() }

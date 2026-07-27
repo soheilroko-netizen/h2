@@ -100,6 +100,8 @@ struct SbRoute {
     auto_detect_interface: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     default_domain_resolver: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    find_process: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -116,6 +118,10 @@ struct SbRouteRule {
     domain_suffix: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     domain_keyword: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    process_name: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    process_path_regex: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     outbound: Option<String>,
 }
@@ -483,6 +489,8 @@ impl ProxyManager {
                         domain: None,
                         domain_suffix: None,
                         domain_keyword: None,
+                        process_name: None,
+                        process_path_regex: None,
                         outbound: None,
                     },
                     SbRouteRule {
@@ -492,6 +500,8 @@ impl ProxyManager {
                         domain: None,
                         domain_suffix: None,
                         domain_keyword: None,
+                        process_name: None,
+                        process_path_regex: None,
                         outbound: None,
                     },
                     SbRouteRule {
@@ -501,12 +511,15 @@ impl ProxyManager {
                         domain: None,
                         domain_suffix: None,
                         domain_keyword: None,
+                        process_name: None,
+                        process_path_regex: None,
                         outbound: Some("direct".into()),
                     },
                 ]),
                 final_outbound: Some("ss-out".into()),
                 auto_detect_interface: Some(true),
                 default_domain_resolver: Some("remote-doh".into()),
+                find_process: Some(true),
             }),
         };
 
