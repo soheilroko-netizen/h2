@@ -368,7 +368,10 @@ fn main() {
             let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let hide_item = MenuItemBuilder::with_id("hide", "Hide").build(app)?;
             let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-            let profile_item = MenuItemBuilder::with_id("profile", "dakal-tls")
+            let profile_name_startup = ProfileStore::load()
+                .map(|s| s.active_profile)
+                .unwrap_or_else(|_| "dakal-tls".to_string());
+            let profile_item = MenuItemBuilder::with_id("profile", &profile_name_startup)
                 .enabled(false)
                 .build(app)?;
             let connect_item = MenuItemBuilder::with_id("connect", "Connect").build(app)?;
@@ -387,7 +390,7 @@ fn main() {
                 .item(&quit_item)
                 .build()?;
 
-            let _tray = TrayIconBuilder::new()
+            let _tray = TrayIconBuilder::with_id("main")
                 .tooltip("dakal-tls VPN")
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
