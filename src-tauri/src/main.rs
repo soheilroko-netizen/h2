@@ -290,7 +290,7 @@ fn get_total_traffic() -> Result<String, String> {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
             let up = v["upload_total"].as_u64().unwrap_or(0);
             let down = v["download_total"].as_u64().unwrap_or(0);
-            return Ok(format!(r#"{{"up":{},"down":{}}"#, up, down));
+            return Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down));
         }
     }
 
