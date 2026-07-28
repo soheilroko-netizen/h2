@@ -253,7 +253,7 @@ fn get_traffic() -> Result<String, String> {
 fn get_total_traffic() -> Result<String, String> {
     use std::io::{Read, Write};
     use std::net::TcpStream;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     let mut stream = match TcpStream::connect_timeout(
         &"127.0.0.1:9097".parse().map_err(|e| format!("addr: {e}"))?,
@@ -263,26 +263,39 @@ fn get_total_traffic() -> Result<String, String> {
         Err(_) => return Ok(r#"{"up":0,"down":0}"#.into()),
     };
 
-    stream.set_read_timeout(Some(Duration::from_millis(500))).ok();
+    stream
+        .set_read_timeout(Some(Duration::from_millis(800)))
+        .ok();
 
     let req = "GET /connections HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nAuthorization: Bearer dakal\r\nConnection: close\r\n\r\n";
     let _ = stream.write_all(req.as_bytes());
 
+    // Read response in chunks for up to 1.5s
+    let deadline = Instant::now() + Duration::from_millis(1500);
     let mut response = String::new();
-    let _ = stream.read_to_string(&mut response);
+    let mut buf = [0u8; 2048];
 
-    // Parse HTTP response, extract JSON body after \r\n\r\n
+    while Instant::now() < deadline {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => response.push_str(&String::from_utf8_lossy(&buf[..n])),
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock
+                || e.kind() == std::io::ErrorKind::TimedOut => continue,
+            Err(_) => break,
+        }
+    }
+
+    // Parse HTTP response body after \r\n\r\n
     if let Some(body) = response.split("\r\n\r\n").nth(1) {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
             let up = v["upload_total"].as_u64().unwrap_or(0);
             let down = v["download_total"].as_u64().unwrap_or(0);
-            return Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down));
+            return Ok(format!(r#"{{"up":{},"down":{}}"#, up, down));
         }
     }
 
     Ok(r#"{"up":0,"down":0}"#.into())
 }
-
 #[tauri::command]
 fn get_uptime(state: State<AppState>) -> Result<u64, String> {
     let guard = state.started_at.lock().unwrap();
