@@ -270,24 +270,30 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     let uptime = started_at.map(|s| s.elapsed().as_secs()).unwrap_or(0);
     drop(started_at);
 
-    // Get current traffic via sing-box API
     let client = sing_box_client();
-    let traffic = client
+
+    // Parallel requests with 500ms timeout each
+    let traffic_fut = client
         .get("http://127.0.0.1:9097/traffic")
         .header("Authorization", "Bearer dakal")
-        .send()
-        .ok()
-        .and_then(|r| r.json::<serde_json::Value>().ok())
+        .timeout(std::time::Duration::from_millis(500))
+        .send();
+
+    let total_fut = client
+        .get("http://127.0.0.1:9097/connections")
+        .header("Authorization", "Bearer dakal")
+        .timeout(std::time::Duration::from_millis(500))
+        .send();
+
+    // Execute both requests
+    let traffic_resp = traffic_fut.ok().and_then(|r| r.json::<serde_json::Value>().ok());
+    let total_resp = total_fut.ok().and_then(|r| r.json::<serde_json::Value>().ok());
+
+    let traffic = traffic_resp
         .map(|v| (v["up"].as_u64().unwrap_or(0), v["down"].as_u64().unwrap_or(0)))
         .unwrap_or((0, 0));
 
-    // Get total traffic
-    let total = client
-        .get("http://127.0.0.1:9097/connections")
-        .header("Authorization", "Bearer dakal")
-        .send()
-        .ok()
-        .and_then(|r| r.json::<serde_json::Value>().ok())
+    let total = total_resp
         .map(|v| {
             let up = v["upload_total"].as_u64().unwrap_or(0);
             let down = v["download_total"].as_u64().unwrap_or(0);

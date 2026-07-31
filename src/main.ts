@@ -438,5 +438,12 @@ document.addEventListener('DOMContentLoaded', () => {
   updateServerInfo();
   loadMainProfiles();
   updateStatus();
-  setInterval(updateStatus, 2000);
+  let statusInterval: ReturnType<typeof setInterval>;
+  function startStatusPolling() {
+    statusInterval = setInterval(updateStatus, 3000);
+  }
+  function stopStatusPolling() {
+    if (statusInterval) clearInterval(statusInterval);
+  }
+  startStatusPolling();
 });
