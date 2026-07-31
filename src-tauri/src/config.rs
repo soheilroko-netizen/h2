@@ -132,9 +132,3 @@ pub fn get_active_config() -> Config {
         _ => stls_defaults(),
     }
 }
-
-// ── Public exports for main.rs ─────────────────────────────────
-pub use Config;
-pub use get_active_config;
-pub use load_mode;
-pub use save_mode;
