@@ -5,7 +5,7 @@ import './styles.css';
 // ── Types ────────────────────────────────────────────────────
 interface FullStatus {
   running: boolean;
-  profile: string;
+  mode: string;
   server: string | null;
   uptime_secs: number;
   pid: number | null;
@@ -14,12 +14,6 @@ interface FullStatus {
   total_up: number;
   total_down: number;
   log_lines: string[];
-}
-
-interface Profile {
-  name: string;
-  is_active: boolean;
-  config?: { server_address?: string };
 }
 
 interface Config {
@@ -32,19 +26,14 @@ interface Config {
   socks5_port: number;
   mtu?: number;
   split_rules?: { pattern: string }[];
-
-  // Hysteria2
-  h2_enabled?: boolean;
-  h2_port?: number;
-  h2_password?: string;
-  h2_sni?: string;
-  h2_insecure?: boolean;
-  h2_obfs?: string;
-  h2_obfs_password?: string;
-  h2_mport?: string;
-
-  // Mode
-  mode?: string;
+  mode: string;
+  h2_port: number;
+  h2_password: string;
+  h2_sni: string;
+  h2_insecure: boolean;
+  h2_obfs: string;
+  h2_obfs_password: string;
+  h2_mport: string;
 }
 
 // ── Elements ─────────────────────────────────────────────────
@@ -60,7 +49,6 @@ const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
 const btnStop = document.getElementById('btn-stop') as HTMLButtonElement;
 const btnSettings = document.getElementById('btn-main-settings')!;
 const btnLog = document.getElementById('btn-main-log')!;
-const mainProfileSelect = document.getElementById('main-profile-select') as HTMLSelectElement;
 
 // Views
 const mainView = document.getElementById('main-view')!;
@@ -110,23 +98,6 @@ function showView(view: 'main' | 'settings' | 'log') {
   logView.style.display = view === 'log' ? 'block' : 'none';
   if (view === 'settings') loadSettingsForm();
   if (view === 'log') refreshLog();
-}
-
-// ── Profiles ─────────────────────────────────────────────────
-async function loadProfiles() {
-  try {
-    const store = await invoke<{ profiles: Profile[]; active_profile: string }>('get_profiles');
-    mainProfileSelect.innerHTML = '';
-    store.profiles.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.name;
-      opt.textContent = p.name;
-      if (p.name === store.active_profile) opt.selected = true;
-      mainProfileSelect.appendChild(opt);
-    });
-  } catch (e) {
-    console.error('Failed to load profiles:', e);
-  }
 }
 
 // ── Auto-ping ────────────────────────────────────────────────
@@ -201,37 +172,9 @@ async function refreshLog() {
 }
 
 // ── Settings form ────────────────────────────────────────────
-let profilesData: Profile[] = [];
-let activeProfile = 'Default';
-
 async function loadSettingsForm() {
   try {
-    const store = await invoke<{ profiles: Profile[]; active_profile: string }>('get_profiles');
-    profilesData = store.profiles;
-    activeProfile = store.active_profile;
-
-    const select = document.getElementById('cfg-profile-select') as HTMLSelectElement;
-    select.innerHTML = '';
-    store.profiles.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.name;
-      opt.textContent = p.name;
-      if (p.name === store.active_profile) opt.selected = true;
-      select.appendChild(opt);
-    });
-
-    await loadProfileFields(store.active_profile);
-  } catch (e) {
-    showSettingsMessage(`Failed: ${e}`, true);
-  }
-}
-
-async function loadProfileFields(name: string) {
-  try {
     const config = await invoke<Config>('get_config');
-    // If switching profiles, get that profile's config
-    const profile = profilesData.find(p => p.name === name);
-    // Use get_config which returns active profile config
     (document.getElementById('cfg-server-address') as HTMLInputElement).value = config.server_address;
     (document.getElementById('cfg-stls-port') as HTMLInputElement).value = String(config.stls_port);
     (document.getElementById('cfg-stls-password') as HTMLInputElement).value = config.stls_password;
@@ -239,59 +182,24 @@ async function loadProfileFields(name: string) {
     (document.getElementById('cfg-ss-port') as HTMLInputElement).value = String(config.ss_port);
     (document.getElementById('cfg-ss-password') as HTMLInputElement).value = config.ss_password;
     (document.getElementById('cfg-socks5-port') as HTMLInputElement).value = String(config.socks5_port);
-    (document.getElementById('cfg-h2-enabled') as HTMLInputElement).checked = config.h2_enabled || false;
-    (document.getElementById('cfg-h2-port') as HTMLInputElement).value = String(config.h2_port || 40001);
-    (document.getElementById('cfg-h2-password') as HTMLInputElement).value = config.h2_password || 'testpass1';
-    (document.getElementById('cfg-h2-sni') as HTMLInputElement).value = config.h2_sni || 'ns.baft.uk';
-    (document.getElementById('cfg-h2-insecure') as HTMLInputElement).checked = config.h2_insecure || false;
-    (document.getElementById('cfg-h2-obfs') as HTMLInputElement).value = config.h2_obfs || 'salamander';
-    (document.getElementById('cfg-h2-obfs-password') as HTMLInputElement).value = config.h2_obfs_password || 'testobfspass';
-    (document.getElementById('cfg-h2-mport') as HTMLInputElement).value = config.h2_mport || '40001-45000';
+    (document.getElementById('cfg-h2-port') as HTMLInputElement).value = String(config.h2_port);
+    (document.getElementById('cfg-h2-password') as HTMLInputElement).value = config.h2_password;
+    (document.getElementById('cfg-h2-sni') as HTMLInputElement).value = config.h2_sni;
+    (document.getElementById('cfg-h2-insecure') as HTMLInputElement).checked = config.h2_insecure;
+    (document.getElementById('cfg-h2-obfs') as HTMLInputElement).value = config.h2_obfs;
+    (document.getElementById('cfg-h2-obfs-password') as HTMLInputElement).value = config.h2_obfs_password;
+    (document.getElementById('cfg-h2-mport') as HTMLInputElement).value = config.h2_mport;
     const rules = (config.split_rules || []).map(r => r.pattern).join('\n');
     (document.getElementById('cfg-split-domains') as HTMLTextAreaElement).value = rules;
   } catch (e) {
-    showSettingsMessage(`Failed to load config: ${e}`, true);
+    showSettingsMessage(`Failed: ${e}`, true);
   }
-}
-
-function showSettingsMsg(msg: string, isError = false) {
-  const el = document.getElementById('settings-message')!;
-  el.textContent = msg;
-  el.className = `message ${isError ? 'error' : 'success'}`;
 }
 
 function showSettingsMessage(msg: string, isError = false) {
-  showSettingsMsg(msg, isError);
-}
-
-async function saveProfileConfig() {
-  try {
-    const config: Config = {
-      server_address: (document.getElementById('cfg-server-address') as HTMLInputElement).value,
-      stls_port: parseInt((document.getElementById('cfg-stls-port') as HTMLInputElement).value) || 8553,
-      stls_password: (document.getElementById('cfg-stls-password') as HTMLInputElement).value,
-      stls_sni: (document.getElementById('cfg-stls-sni') as HTMLInputElement).value,
-      ss_port: parseInt((document.getElementById('cfg-ss-port') as HTMLInputElement).value) || 8380,
-      ss_password: (document.getElementById('cfg-ss-password') as HTMLInputElement).value,
-      socks5_port: parseInt((document.getElementById('cfg-socks5-port') as HTMLInputElement).value) || 1080,
-      h2_enabled: (document.getElementById('cfg-h2-enabled') as HTMLInputElement).checked,
-      h2_port: parseInt((document.getElementById('cfg-h2-port') as HTMLInputElement).value) || 40001,
-      h2_password: (document.getElementById('cfg-h2-password') as HTMLInputElement).value,
-      h2_sni: (document.getElementById('cfg-h2-sni') as HTMLInputElement).value,
-      h2_insecure: (document.getElementById('cfg-h2-insecure') as HTMLInputElement).checked,
-      h2_obfs: (document.getElementById('cfg-h2-obfs') as HTMLInputElement).value,
-      h2_obfs_password: (document.getElementById('cfg-h2-obfs-password') as HTMLInputElement).value,
-      h2_mport: (document.getElementById('cfg-h2-mport') as HTMLInputElement).value,
-      split_rules: (document.getElementById('cfg-split-domains') as HTMLTextAreaElement).value
-        .split('\n')
-        .filter(l => l.trim())
-        .map(l => ({ pattern: l.trim() })),
-    };
-    await invoke('save_config', { config });
-    showSettingsMsg('Saved');
-  } catch (e) {
-    showSettingsMsg(`Failed: ${e}`, true);
-  }
+  const el = document.getElementById('settings-message')!;
+  el.textContent = msg;
+  el.className = `message ${isError ? 'error' : 'success'}`;
 }
 
 // ── Events ───────────────────────────────────────────────────
@@ -307,7 +215,7 @@ btnStart.addEventListener('click', async () => {
   clearMessage();
   showMessage('Starting...', false);
   try {
-    await invoke('start_proxy', { profile: mainProfileSelect.value });
+    await invoke('start_proxy');
     showMessage('Started');
     startPingLoop();
     lastPid = null;
@@ -333,28 +241,17 @@ btnSettings.addEventListener('click', () => showView('settings'));
 btnLog.addEventListener('click', () => showView('log'));
 btnBackFromLog.addEventListener('click', () => showView('main'));
 btnRefreshLog.addEventListener('click', refreshLog);
-btnBackFromSettings.addEventListener('click', async () => {
-  await loadProfiles();
-  showView('main');
-});
+btnBackFromSettings.addEventListener('click', () => showView('main'));
 
-mainProfileSelect.addEventListener('change', async () => {
-  try {
-    await invoke('switch_profile', { name: mainProfileSelect.value });
-    clearMessage();
-  } catch (e) {
-    showMessage(`Failed: ${e}`, true);
-  }
+// Settings save button — no-op (baked configs)
+document.getElementById('btn-save-config')?.addEventListener('click', () => {
+  showSettingsMessage('Configs are baked-in. Settings are read-only for now.');
 });
-
-// Settings save button
-document.getElementById('btn-save-config')?.addEventListener('click', saveProfileConfig);
 
 // ── Mode toggle ───────────────────────────────────────────────
 async function loadModeToggle() {
   try {
-    const config = await invoke<Config>('get_config');
-    const mode = config.mode || 'shadowtls';
+    const mode = await invoke<string>('get_mode');
     updateModeToggleUI(mode);
   } catch (e) {
     console.error('Failed to load mode:', e);
@@ -391,7 +288,6 @@ document.getElementById('mode-h2')?.addEventListener('click', async () => {
 
 // ── Init ─────────────────────────────────────────────────────
 (async () => {
-  await loadProfiles();
   await loadModeToggle();
   await updateStatus();
 })();

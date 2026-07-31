@@ -2,7 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 // ── Single-instance guard via named mutex (Windows) ──────────────────
-// Prevents launching a second instance while one is already running.
 #[cfg(target_os = "windows")]
 fn check_single_instance() {
     use std::ffi::CString;
@@ -34,7 +33,6 @@ fn check_single_instance() {}
 use std::sync::Mutex;
 use std::time::Instant;
 
-// HTTP client with connection pooling for sing-box API
 static SING_BOX_CLIENT: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
 
 fn sing_box_client() -> &'static reqwest::blocking::Client {
@@ -51,7 +49,7 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 
-use config::{Config, ProfileStore};
+use config::{self, Config};
 use proxy::ProxyManager;
 
 mod config;
@@ -72,12 +70,10 @@ fn update_tray_state(app: &tauri::AppHandle) {
     let running = state.proxy.lock().unwrap().is_running();
     drop(state);
 
-    let profile_name = ProfileStore::load()
-        .map(|s| s.active_profile)
-        .unwrap_or_else(|_| "dakal-tls".to_string());
+    let mode = config::load_mode();
 
     let tooltip = if running {
-        format!("dakal-tls VPN — {} (connected)", profile_name)
+        format!("dakal-tls VPN — {} (connected)", mode)
     } else {
         "dakal-tls VPN".to_string()
     };
@@ -85,7 +81,7 @@ fn update_tray_state(app: &tauri::AppHandle) {
     let show = MenuItemBuilder::with_id("show", "Show").build(app).unwrap();
     let hide = MenuItemBuilder::with_id("hide", "Hide").build(app).unwrap();
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app).unwrap();
-    let profile = MenuItemBuilder::with_id("profile", &profile_name)
+    let mode_item = MenuItemBuilder::with_id("mode", &mode)
         .enabled(false)
         .build(app)
         .unwrap();
@@ -95,7 +91,7 @@ fn update_tray_state(app: &tauri::AppHandle) {
             .build(app)
             .unwrap();
         MenuBuilder::new(app)
-            .item(&profile)
+            .item(&mode_item)
             .item(&disc)
             .separator()
             .item(&show)
@@ -109,7 +105,7 @@ fn update_tray_state(app: &tauri::AppHandle) {
             .build(app)
             .unwrap();
         MenuBuilder::new(app)
-            .item(&profile)
+            .item(&mode_item)
             .item(&conn)
             .separator()
             .item(&show)
@@ -157,16 +153,12 @@ fn get_status(state: State<AppState>) -> Result<bool, String> {
 
 #[tauri::command]
 fn get_config() -> Result<Config, String> {
-    let store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.get_active_config().map_err(|e| e.to_string())
+    Ok(config::get_active_config())
 }
 
 #[tauri::command]
-fn save_config(config: Config) -> Result<String, String> {
-    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store
-        .update_active_config(config)
-        .map_err(|e| e.to_string())?;
+fn save_config(_config: Config) -> Result<String, String> {
+    // No-op for now — configs are baked in
     Ok("Saved".into())
 }
 
@@ -182,33 +174,14 @@ fn set_mode(mode: String, state: State<AppState>) -> Result<String, String> {
             *state.prev_time.lock().unwrap() = None;
         }
     }
-    // Save mode to active profile
-    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    let mut config = store.get_active_config().map_err(|e| e.to_string())?;
-    config.mode = mode.clone();
-    store.update_active_config(config).map_err(|e| e.to_string())?;
+    config::save_mode(&mode).map_err(|e| e.to_string())?;
     Ok(format!("Mode set to '{}'", mode))
 }
 
 #[tauri::command]
-fn get_profiles() -> Result<ProfileStore, String> {
-    ProfileStore::load().map_err(|e| e.to_string())
+fn get_mode() -> Result<String, String> {
+    Ok(config::load_mode())
 }
-
-#[tauri::command]
-fn add_profile(name: String, config: Config) -> Result<String, String> {
-    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.add_profile(name.clone(), config).map_err(|e| e.to_string())?;
-    Ok(format!("Created '{}'", name))
-}
-
-#[tauri::command]
-fn delete_profile(name: String) -> Result<String, String> {
-    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.delete_profile(&name).map_err(|e| e.to_string())?;
-    Ok(format!("Deleted '{}'", name))
-}
-
 
 #[tauri::command]
 fn get_total_traffic() -> Result<String, String> {
@@ -225,9 +198,6 @@ fn get_total_traffic() -> Result<String, String> {
 
     let v: serde_json::Value = resp.json().map_err(|e| format!("json: {e}"))?;
 
-    // sing-box /connections returns:
-    //   { "download_total": N, "upload_total": N, "connections": [...] }
-    // Older builds / forks only return the array -- sum per-conn bytes.
     let up = v["upload_total"].as_u64().unwrap_or(0);
     let down = v["download_total"].as_u64().unwrap_or(0);
     if up == 0 && down == 0 {
@@ -254,21 +224,18 @@ fn get_uptime(state: State<AppState>) -> Result<u64, String> {
     }
 }
 
-// Batched status for frontend polling - single invoke returns all metrics
 #[tauri::command]
 fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     let proxy = state.proxy.lock().unwrap();
     let running = proxy.is_running();
     drop(proxy);
 
-    let profile_name = ProfileStore::load()
-        .map(|s| s.active_profile)
-        .unwrap_or_else(|_| "Default".to_string());
+    let mode = config::load_mode();
 
     if !running {
         return Ok(FullStatus {
             running: false,
-            profile: profile_name,
+            mode,
             server: None,
             uptime_secs: 0,
             pid: None,
@@ -284,19 +251,14 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     let uptime_secs = started_at.map(|s| s.elapsed().as_secs()).unwrap_or(0);
     drop(started_at);
 
-    // Get server address from active config
-    let server_addr = ProfileStore::load()
-        .ok()
-        .and_then(|s| s.get_active_config().ok())
-        .map(|c| c.server_address.clone());
+    let cfg = config::get_active_config();
+    let server_addr = Some(cfg.server_address.clone());
 
-    // Get PID from proxy
     let proxy2 = state.proxy.lock().unwrap();
     let pid = proxy2.pid();
     let log_path = proxy2.debug_log_path.clone();
     drop(proxy2);
 
-    // Read last 100 log lines
     let log_lines: Vec<String> = std::fs::read_to_string(&log_path)
         .map(|f| {
             f.lines()
@@ -312,7 +274,6 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
 
     let client = sing_box_client();
 
-    // /traffic is SSE (not JSON) — only /connections gives totals
     let connections_resp = client
         .get("http://127.0.0.1:9097/connections")
         .header("Authorization", "Bearer dakal")
@@ -344,7 +305,6 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
         })
         .unwrap_or((0, 0));
 
-    // Calculate traffic speed (bytes/sec) from delta
     let now = Instant::now();
     let mut prev_total = state.prev_total.lock().unwrap();
     let mut prev_time = state.prev_time.lock().unwrap();
@@ -358,7 +318,6 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
             *prev_time = Some(now);
             ((up_delta as f64 / elapsed) as u64, (down_delta as f64 / elapsed) as u64)
         } else {
-            // Too soon, return previous rate (0 on first call)
             (0, 0)
         }
     } else {
@@ -371,7 +330,7 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
 
     Ok(FullStatus {
         running: true,
-        profile: profile_name,
+        mode,
         server: server_addr,
         uptime_secs,
         pid,
@@ -386,7 +345,7 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
 #[derive(serde::Serialize)]
 struct FullStatus {
     running: bool,
-    profile: String,
+    mode: String,
     server: Option<String>,
     uptime_secs: u64,
     pid: Option<u32>,
@@ -452,29 +411,6 @@ fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-fn switch_profile(name: String) -> Result<String, String> {
-    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.switch_profile(&name).map_err(|e| e.to_string())?;
-    Ok(format!("Switched to '{}'", name))
-}
-
-#[tauri::command]
-fn switch_profile_stop(name: String, state: State<AppState>) -> Result<String, String> {
-    let mut proxy = state.proxy.lock().unwrap();
-    if proxy.is_running() {
-        proxy.stop().map_err(|e| e.to_string())?;
-        *state.started_at.lock().unwrap() = None;
-        *state.prev_total.lock().unwrap() = (0, 0);
-        *state.prev_time.lock().unwrap() = None;
-    }
-    drop(proxy);
-
-    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.switch_profile(&name).map_err(|e| e.to_string())?;
-    Ok(format!("Switched to '{}'", name))
-}
-
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .title("dakal-tls v5")
@@ -514,10 +450,8 @@ fn main() {
             let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let hide_item = MenuItemBuilder::with_id("hide", "Hide").build(app)?;
             let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-            let profile_name_startup = ProfileStore::load()
-                .map(|s| s.active_profile)
-                .unwrap_or_else(|_| "dakal-tls".to_string());
-            let profile_item = MenuItemBuilder::with_id("profile", &profile_name_startup)
+            let mode_startup = config::load_mode();
+            let mode_item = MenuItemBuilder::with_id("mode", &mode_startup)
                 .enabled(false)
                 .build(app)?;
             let connect_item = MenuItemBuilder::with_id("connect", "Connect").build(app)?;
@@ -526,7 +460,7 @@ fn main() {
                 .build(app)?;
 
             let menu = MenuBuilder::new(app)
-                .item(&profile_item)
+                .item(&mode_item)
                 .item(&connect_item)
                 .item(&disconnect_item)
                 .separator()
@@ -605,9 +539,7 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Initial tray state (profile name + correct menu)
             update_tray_state(&app.handle());
-
             create_main_window(&app.handle())?;
             Ok(())
         })
@@ -625,17 +557,13 @@ fn main() {
             stop_proxy,
             get_config,
             save_config,
-            get_profiles,
-            add_profile,
-            delete_profile,
-            switch_profile,
-            switch_profile_stop,
+            set_mode,
+            get_mode,
             real_ping,
             get_uptime,
             get_full_status,
             get_log,
             open_settings_window,
-            set_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");

@@ -1,4 +1,5 @@
 // config.rs - App configuration management
+// Simplified: two baked-in profiles (ShadowTLS, Hysteria2), no ProfileStore
 use anyhow::Result;
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
@@ -7,53 +8,27 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    #[serde(default = "default_server_address")]
     pub server_address: String,
-    #[serde(default = "default_ss_port")]
     pub ss_port: u16,
     pub ss_password: String,
-    #[serde(default = "default_stls_port")]
     pub stls_port: u16,
     pub stls_password: String,
-    #[serde(default = "default_stls_sni")]
     pub stls_sni: String,
-    #[serde(default = "default_socks5_port")]
     pub socks5_port: u16,
-    #[serde(default)]
     pub mtu: Option<u32>,
-    #[serde(default)]
     pub split_rules: Vec<SplitRule>,
 
-    #[serde(default = "default_mode")]
     pub mode: String,
 
     // Hysteria2 fields
-    #[serde(default)]
-    pub h2_enabled: bool,
-    #[serde(default = "default_h2_port")]
     pub h2_port: u16,
-    #[serde(default = "default_h2_password")]
     pub h2_password: String,
-    #[serde(default = "default_h2_sni")]
     pub h2_sni: String,
-    #[serde(default = "default_h2_insecure")]
     pub h2_insecure: bool,
-    #[serde(default = "default_h2_obfs")]
     pub h2_obfs: String,
-    #[serde(default = "default_h2_obfs_password")]
     pub h2_obfs_password: String,
-    #[serde(default = "default_h2_mport")]
     pub h2_mport: String,
 }
-
-fn default_h2_port() -> u16 { 40001 }
-fn default_h2_password() -> String { "testpass1".to_string() }
-fn default_h2_sni() -> String { "ns.baft.uk".to_string() }
-fn default_h2_insecure() -> bool { false }
-fn default_h2_obfs() -> String { "salamander".to_string() }
-fn default_h2_obfs_password() -> String { "testobfspass".to_string() }
-fn default_h2_mport() -> String { "40001-45000".to_string() }
-fn default_mode() -> String { "shadowtls".to_string() }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SplitRule {
@@ -64,155 +39,96 @@ pub struct SplitRule {
     pub folder_paths: Vec<String>,
 }
 
-fn default_server_address() -> String { "ns.baft.uk".to_string() }
-fn default_ss_port() -> u16 { 8380 }
-fn default_stls_port() -> u16 { 8553 }
-fn default_stls_sni() -> String { "dl.google.com".to_string() }
-fn default_socks5_port() -> u16 { 1080 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Profile {
-    pub name: String,
-    pub config: Config,
+fn config_path() -> Result<PathBuf> {
+    let proj_dirs = ProjectDirs::from("com", "stls", "stls")
+        .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
+    let config_dir = proj_dirs.config_dir();
+    fs::create_dir_all(config_dir)?;
+    Ok(config_dir.join("config.json"))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ProfileStore {
-    pub profiles: Vec<Profile>,
-    pub active_profile: String,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server_address: "ns.baft.uk".to_string(),
-            ss_port: 8380,
-            ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".to_string(),
-            stls_port: 8553,
-            stls_password: "y2lachetore".to_string(),
-            stls_sni: "dl.google.com".to_string(),
-            socks5_port: 1080,
-            mtu: None,
-            split_rules: vec![],
-            mode: "shadowtls".to_string(),
-            h2_enabled: false,
-            h2_port: 40001,
-            h2_password: "testpass1".to_string(),
-            h2_sni: "ns.baft.uk".to_string(),
-            h2_insecure: false,
-            h2_obfs: "salamander".to_string(),
-            h2_obfs_password: "testobfspass".to_string(),
-            h2_mport: "40001-45000".to_string(),
+/// Load the active mode from config.json (or default "shadowtls")
+pub fn load_mode() -> String {
+    match config_path() {
+        Ok(path) if path.exists() => {
+            let content = fs::read_to_string(&path).unwrap_or_default();
+            serde_json::from_str::<serde_json::Value>(&content)
+                .ok()
+                .and_then(|v| v["mode"].as_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "shadowtls".to_string())
         }
+        _ => "shadowtls".to_string(),
     }
 }
 
-impl Config {
-    pub fn config_path() -> Result<PathBuf> {
-        let proj_dirs = ProjectDirs::from("com", "stls", "stls")
-            .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
-        let config_dir = proj_dirs.config_dir();
-        fs::create_dir_all(config_dir)?;
-        Ok(config_dir.join("config.json"))
-    }
+/// Save just the mode to config.json
+pub fn save_mode(mode: &str) -> Result<()> {
+    let path = config_path()?;
+    let mut existing = if path.exists() {
+        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&path)?)
+            .unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+    existing["mode"] = serde_json::Value::String(mode.to_string());
+    fs::write(&path, serde_json::to_string_pretty(&existing)?)?;
+    Ok(())
+}
 
-    pub fn load() -> Result<Self> {
-        let path = Self::config_path()?;
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-        let content = fs::read_to_string(&path)?;
-        match serde_json::from_str::<Config>(&content) {
-            Ok(config) => Ok(config),
-            Err(_) => {
-                eprintln!("[stls] config parse failed, using defaults");
-                Ok(Self::default())
-            }
-        }
-    }
+/// Return the baked-in ShadowTLS default config
+pub fn stls_defaults() -> Config {
+    Config {
+        server_address: "ns.baft.uk".to_string(),
+        ss_port: 8380,
+        ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".to_string(),
+        stls_port: 8553,
+        stls_password: "y2lachetore".to_string(),
+        stls_sni: "dl.google.com".to_string(),
+        socks5_port: 1080,
+        mtu: None,
+        split_rules: vec![],
+        mode: "shadowtls".to_string(),
 
-    pub fn save(&self) -> Result<()> {
-        let path = Self::config_path()?;
-        let content = serde_json::to_string_pretty(self)?;
-        fs::write(&path, content)?;
-        Ok(())
+        h2_port: 40001,
+        h2_password: "testpass1".to_string(),
+        h2_sni: "ns.baft.uk".to_string(),
+        h2_insecure: false,
+        h2_obfs: "salamander".to_string(),
+        h2_obfs_password: "testobfspass".to_string(),
+        h2_mport: "40001-45000".to_string(),
     }
 }
 
-impl ProfileStore {
-    fn profiles_path() -> Result<PathBuf> {
-        let proj_dirs = ProjectDirs::from("com", "stls", "stls")
-            .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
-        let config_dir = proj_dirs.config_dir();
-        fs::create_dir_all(config_dir)?;
-        Ok(config_dir.join("profiles.json"))
-    }
+/// Return the baked-in Hysteria2 default config
+pub fn h2_defaults() -> Config {
+    Config {
+        server_address: "ns.baft.uk".to_string(),
+        ss_port: 8380,
+        ss_password: String::new(),
+        stls_port: 8553,
+        stls_password: String::new(),
+        stls_sni: String::new(),
+        socks5_port: 1080,
+        mtu: None,
+        split_rules: vec![],
+        mode: "hysteria2".to_string(),
 
-    pub fn load() -> Result<Self> {
-        let path = Self::profiles_path()?;
-        if !path.exists() {
-            let default_config = Config::load().unwrap_or_default();
-            return Ok(Self {
-                profiles: vec![Profile {
-                    name: "Default".to_string(),
-                    config: default_config,
-                }],
-                active_profile: "Default".to_string(),
-            });
-        }
-        let content = fs::read_to_string(&path)?;
-        let store: ProfileStore = serde_json::from_str(&content)?;
-        Ok(store)
+        // From: hysteria2://testuser1:testpass1@ns.baft.uk:40001?sni=ns.baft.uk&insecure=0&obfs=salamander&obfs-password=testobfspass&mport=40001-45000
+        h2_port: 40001,
+        h2_password: "testpass1".to_string(),
+        h2_sni: "ns.baft.uk".to_string(),
+        h2_insecure: false,
+        h2_obfs: "salamander".to_string(),
+        h2_obfs_password: "testobfspass".to_string(),
+        h2_mport: "40001-45000".to_string(),
     }
+}
 
-    pub fn save(&self) -> Result<()> {
-        let path = Self::profiles_path()?;
-        let content = serde_json::to_string_pretty(self)?;
-        fs::write(&path, content)?;
-        Ok(())
-    }
-
-    pub fn get_active_config(&self) -> Result<Config> {
-        self.profiles
-            .iter()
-            .find(|p| p.name == self.active_profile)
-            .map(|p| p.config.clone())
-            .ok_or_else(|| anyhow::anyhow!("Active profile not found"))
-    }
-
-    pub fn add_profile(&mut self, name: String, config: Config) -> Result<()> {
-        if self.profiles.iter().any(|p| p.name == name) {
-            anyhow::bail!("Profile '{}' already exists", name);
-        }
-        self.profiles.push(Profile { name, config });
-        self.save()
-    }
-
-    pub fn delete_profile(&mut self, name: &str) -> Result<()> {
-        if name == "Default" {
-            anyhow::bail!("Cannot delete Default profile");
-        }
-        if self.active_profile == name {
-            anyhow::bail!("Cannot delete active profile");
-        }
-        self.profiles.retain(|p| p.name != name);
-        self.save()
-    }
-
-    pub fn switch_profile(&mut self, name: &str) -> Result<()> {
-        if !self.profiles.iter().any(|p| p.name == name) {
-            anyhow::bail!("Profile '{}' not found", name);
-        }
-        self.active_profile = name.to_string();
-        self.save()
-    }
-
-    pub fn update_active_config(&mut self, config: Config) -> Result<()> {
-        if let Some(profile) = self.profiles.iter_mut().find(|p| p.name == self.active_profile) {
-            profile.config = config;
-            self.save()
-        } else {
-            anyhow::bail!("Active profile '{}' not found", self.active_profile);
-        }
+/// Get the config for the active mode
+pub fn get_active_config() -> Config {
+    let mode = load_mode();
+    match mode.as_str() {
+        "hysteria2" => h2_defaults(),
+        _ => stls_defaults(),
     }
 }

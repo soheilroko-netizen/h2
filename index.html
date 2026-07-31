@@ -13,15 +13,14 @@
         <h1>shado v5</h1>
         <p class="subtitle">ShadowTLS + Shadowsocks VPN</p>
 
-        <div class="profile-bar-main">
-          <select id="main-profile-select" class="profile-select"></select>
-          <button id="btn-main-settings" class="btn-small">Settings</button>
-          <button id="btn-main-log" class="btn-small">Log</button>
-        </div>
-
         <div class="mode-toggle" id="mode-toggle">
           <button class="mode-btn active" data-mode="shadowtls" id="mode-stls">ShadowTLS</button>
           <button class="mode-btn" data-mode="hysteria2" id="mode-h2">Hysteria2</button>
+        </div>
+
+        <div class="profile-bar-main">
+          <button id="btn-main-settings" class="btn-small">Settings</button>
+          <button id="btn-main-log" class="btn-small">Log</button>
         </div>
 
         <div class="status-card">
@@ -93,12 +92,6 @@
 
         <hr style="margin: 16px 0; border-color: var(--border);" />
         <h3 style="margin-bottom: 12px; color: var(--accent);">Hysteria2</h3>
-
-        <div class="form-group">
-          <label>
-            <input type="checkbox" id="cfg-h2-enabled" /> Enable Hysteria2
-          </label>
-        </div>
 
         <div class="form-group">
           <label>Hysteria2 Port</label>

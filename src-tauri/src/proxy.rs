@@ -208,7 +208,7 @@ pub struct ProxyManager {
 
 impl ProxyManager {
     pub fn new() -> Result<Self> {
-        let config = Config::load()?;
+        let config = crate::config::get_active_config();
         let config_dir = ProjectDirs::from("com", "dakal-tls", "dakal-tls")
             .map(|d| d.config_dir().to_path_buf())
             .unwrap_or_else(|| PathBuf::from("."));
@@ -280,9 +280,8 @@ impl ProxyManager {
             }
         }
 
-        // Re-read config from active profile
-        let store = crate::config::ProfileStore::load()?;
-        self.config = store.get_active_config()?;
+        // Re-read config from active mode
+        self.config = crate::config::get_active_config();
         self.debug_log(format!("config loaded"));
 
         let exe = self.get_bundled_or_download()?;
