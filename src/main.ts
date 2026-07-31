@@ -1,7 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import './styles.css';
 
 // ── Types ────────────────────────────────────────────────────
@@ -21,12 +19,19 @@ interface FullStatus {
 interface Profile {
   name: string;
   is_active: boolean;
-  server?: string;
-  ss_server?: string;
-  version?: number;
-  ss_method?: string;
-  server_addr?: string;
-  ss_server_addr?: string;
+  config?: { server_address?: string };
+}
+
+interface Config {
+  server_address: string;
+  ss_port: number;
+  ss_password: string;
+  stls_port: number;
+  stls_password: string;
+  stls_sni: string;
+  socks5_port: number;
+  mtu?: number;
+  split_rules?: { pattern: string }[];
 }
 
 // ── Elements ─────────────────────────────────────────────────
@@ -42,12 +47,16 @@ const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
 const btnStop = document.getElementById('btn-stop') as HTMLButtonElement;
 const btnSettings = document.getElementById('btn-main-settings')!;
 const btnLog = document.getElementById('btn-main-log')!;
+const mainProfileSelect = document.getElementById('main-profile-select') as HTMLSelectElement;
+
+// Views
+const mainView = document.getElementById('main-view')!;
+const settingsView = document.getElementById('settings-view')!;
+const logView = document.getElementById('log-view')!;
+const logContent = document.getElementById('log-content')!;
 const btnRefreshLog = document.getElementById('btn-refresh-log')!;
 const btnBackFromLog = document.getElementById('btn-back-from-log')!;
-const logContent = document.getElementById('log-content')!;
-const mainProfileSelect = document.getElementById('main-profile-select') as HTMLSelectElement;
-const logView = document.getElementById('log-view')!;
-const container = document.querySelector('.container') as HTMLElement;
+const btnBackFromSettings = document.getElementById('btn-back-from-settings')!;
 
 // ── Helpers ──────────────────────────────────────────────────
 function formatBytes(bytes: number): string {
@@ -58,11 +67,12 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-function formatSpeed(bytesPerSec: number): string {
-  return `${formatBytes(bytesPerSec)}/s`;
+function formatSpeed(bps: number): string {
+  return `${formatBytes(bps)}/s`;
 }
 
 function formatUptime(secs: number): string {
+  if (!secs || secs < 1) return '-';
   if (secs < 60) return `${secs}s`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ${secs % 60}s`;
   const h = Math.floor(secs / 3600);
@@ -80,23 +90,25 @@ function clearMessage() {
   message.className = 'message';
 }
 
-// ── Server address display ───────────────────────────────────
-function formatAddress(server: string | null): string {
-  if (!server) return '';
-  // server is "host:port" — just show it as-is
-  return server;
+// ── Views ────────────────────────────────────────────────────
+function showView(view: 'main' | 'settings' | 'log') {
+  mainView.style.display = view === 'main' ? 'block' : 'none';
+  settingsView.style.display = view === 'settings' ? 'block' : 'none';
+  logView.style.display = view === 'log' ? 'block' : 'none';
+  if (view === 'settings') loadSettingsForm();
+  if (view === 'log') refreshLog();
 }
 
 // ── Profiles ─────────────────────────────────────────────────
 async function loadProfiles() {
   try {
-    const profiles = await invoke<Profile[]>('get_profiles');
+    const store = await invoke<{ profiles: Profile[]; active_profile: string }>('get_profiles');
     mainProfileSelect.innerHTML = '';
-    profiles.forEach(p => {
+    store.profiles.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.name;
       opt.textContent = p.name;
-      if (p.is_active) opt.selected = true;
+      if (p.name === store.active_profile) opt.selected = true;
       mainProfileSelect.appendChild(opt);
     });
   } catch (e) {
@@ -105,14 +117,12 @@ async function loadProfiles() {
 }
 
 // ── Auto-ping ────────────────────────────────────────────────
-let pingRunning = false;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 
 async function doPing() {
-  if (pingRunning) return;
   try {
     const result = await invoke<string>('real_ping');
-    pingValue.textContent = result === 'timeout' ? 'timeout' : `${result} ms`;
+    pingValue.textContent = result;
   } catch {
     pingValue.textContent = '-';
   }
@@ -127,79 +137,131 @@ function startPingLoop() {
 function stopPingLoop() {
   if (pingTimer) clearInterval(pingTimer);
   pingTimer = null;
-  pingRunning = false;
 }
 
-// ── Status update ────────────────────────────────────────────
+// ── Status update (every 1s) ─────────────────────────────────
 let lastPid: number | null = null;
 
 async function updateStatus() {
   try {
     const s = await invoke<FullStatus>('get_full_status');
 
-    // Update status display
     statusText.textContent = s.running ? 'Connected' : 'Disconnected';
     statusDot.classList.toggle('connected', s.running);
+    statusAddress.textContent = s.running && s.server ? s.server : '';
 
-    // Address in status card
-    statusAddress.textContent = s.running && s.server ? formatAddress(s.server) : '';
+    if (!s.running) pingValue.textContent = '-';
 
-    // Ping — show last result or '-' if stopped
-    if (!s.running) {
-      pingValue.textContent = '-';
-    }
+    uptimeValue.textContent = formatUptime(s.uptime_secs);
 
-    // Uptime
-    uptimeValue.textContent = s.running ? formatUptime(s.uptime_secs) : '-';
-
-    // Current speed
     trafficValue.textContent = s.running
       ? `↑ ${formatSpeed(s.traffic_up)}  ↓ ${formatSpeed(s.traffic_down)}`
       : '↑ 0 B/s  ↓ 0 B/s';
 
-    // Total traffic
     totalTrafficValue.textContent = s.running
       ? `↑ ${formatBytes(s.total_up)}  ↓ ${formatBytes(s.total_down)}`
       : '↑ 0 B  ↓ 0 B';
 
-    // Buttons
     btnStart.disabled = s.running;
     btnStop.disabled = !s.running;
 
-    // PID changed → restart ping
     if (s.running && s.pid !== lastPid) {
       startPingLoop();
     } else if (!s.running) {
       stopPingLoop();
     }
-    lastPid = s.pid;
+    lastPid = s.pid ?? null;
 
-    // Auto-clear message after reconnect
     if (s.running) clearMessage();
-  } catch {
-    // silent
-  }
+  } catch { /* silent */ }
 }
 
-// ── Log view ─────────────────────────────────────────────────
-function showLogView() {
-  container.style.display = 'none';
-  logView.style.display = 'block';
-  refreshLog();
-}
-
-function hideLogView() {
-  logView.style.display = 'none';
-  container.style.display = 'block';
-}
-
+// ── Log ──────────────────────────────────────────────────────
 async function refreshLog() {
   try {
     const s = await invoke<FullStatus>('get_full_status');
-    logContent.textContent = s.log_lines.join('\n');
+    logContent.textContent = s.log_lines.join('\n') || 'No log available';
     logContent.scrollTop = logContent.scrollHeight;
   } catch {
     logContent.textContent = 'Failed to load log.';
+  }
+}
+
+// ── Settings form ────────────────────────────────────────────
+let profilesData: Profile[] = [];
+let activeProfile = 'Default';
+
+async function loadSettingsForm() {
+  try {
+    const store = await invoke<{ profiles: Profile[]; active_profile: string }>('get_profiles');
+    profilesData = store.profiles;
+    activeProfile = store.active_profile;
+
+    const select = document.getElementById('cfg-profile-select') as HTMLSelectElement;
+    select.innerHTML = '';
+    store.profiles.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      opt.textContent = p.name;
+      if (p.name === store.active_profile) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    await loadProfileFields(store.active_profile);
+  } catch (e) {
+    showSettingsMessage(`Failed: ${e}`, true);
+  }
+}
+
+async function loadProfileFields(name: string) {
+  try {
+    const config = await invoke<Config>('get_config');
+    // If switching profiles, get that profile's config
+    const profile = profilesData.find(p => p.name === name);
+    // Use get_config which returns active profile config
+    (document.getElementById('cfg-server-address') as HTMLInputElement).value = config.server_address;
+    (document.getElementById('cfg-stls-port') as HTMLInputElement).value = String(config.stls_port);
+    (document.getElementById('cfg-stls-password') as HTMLInputElement).value = config.stls_password;
+    (document.getElementById('cfg-stls-sni') as HTMLInputElement).value = config.stls_sni;
+    (document.getElementById('cfg-ss-port') as HTMLInputElement).value = String(config.ss_port);
+    (document.getElementById('cfg-ss-password') as HTMLInputElement).value = config.ss_password;
+    (document.getElementById('cfg-socks5-port') as HTMLInputElement).value = String(config.socks5_port);
+    const rules = (config.split_rules || []).map(r => r.pattern).join('\n');
+    (document.getElementById('cfg-split-domains') as HTMLTextAreaElement).value = rules;
+  } catch (e) {
+    showSettingsMessage(`Failed to load config: ${e}`, true);
+  }
+}
+
+function showSettingsMsg(msg: string, isError = false) {
+  const el = document.getElementById('settings-message')!;
+  el.textContent = msg;
+  el.className = `message ${isError ? 'error' : 'success'}`;
+}
+
+function showSettingsMessage(msg: string, isError = false) {
+  showSettingsMsg(msg, isError);
+}
+
+async function saveProfileConfig() {
+  try {
+    const config: Config = {
+      server_address: (document.getElementById('cfg-server-address') as HTMLInputElement).value,
+      stls_port: parseInt((document.getElementById('cfg-stls-port') as HTMLInputElement).value) || 8553,
+      stls_password: (document.getElementById('cfg-stls-password') as HTMLInputElement).value,
+      stls_sni: (document.getElementById('cfg-stls-sni') as HTMLInputElement).value,
+      ss_port: parseInt((document.getElementById('cfg-ss-port') as HTMLInputElement).value) || 8380,
+      ss_password: (document.getElementById('cfg-ss-password') as HTMLInputElement).value,
+      socks5_port: parseInt((document.getElementById('cfg-socks5-port') as HTMLInputElement).value) || 1080,
+      split_rules: (document.getElementById('cfg-split-domains') as HTMLTextAreaElement).value
+        .split('\n')
+        .filter(l => l.trim())
+        .map(l => ({ pattern: l.trim() })),
+    };
+    await invoke('save_config', { config });
+    showSettingsMsg('Saved');
+  } catch (e) {
+    showSettingsMsg(`Failed: ${e}`, true);
   }
 }
 
@@ -214,11 +276,10 @@ listen('proxy-log', (event: { payload: string }) => {
 // ── Button handlers ──────────────────────────────────────────
 btnStart.addEventListener('click', async () => {
   clearMessage();
-  const profile = mainProfileSelect.value;
   showMessage('Starting...', false);
   try {
-    await invoke('start_proxy', { profile });
-    showMessage('Started successfully');
+    await invoke('start_proxy', { profile: mainProfileSelect.value });
+    showMessage('Started');
     startPingLoop();
     lastPid = null;
   } catch (e: any) {
@@ -234,43 +295,36 @@ btnStop.addEventListener('click', async () => {
     stopPingLoop();
     lastPid = null;
     pingValue.textContent = '-';
-    uptimeValue.textContent = '-';
-    trafficValue.textContent = '↑ 0 B/s  ↓ 0 B/s';
-    totalTrafficValue.textContent = '↑ 0 B  ↓ 0 B';
   } catch (e: any) {
     showMessage(String(e), true);
   }
 });
 
-btnSettings.addEventListener('click', async () => {
-  try {
-    await invoke('open_settings_window');
-  } catch (e) {
-    console.error('Failed to open settings:', e);
-  }
+btnSettings.addEventListener('click', () => showView('settings'));
+btnLog.addEventListener('click', () => showView('log'));
+btnBackFromLog.addEventListener('click', () => showView('main'));
+btnRefreshLog.addEventListener('click', refreshLog);
+btnBackFromSettings.addEventListener('click', async () => {
+  await loadProfiles();
+  showView('main');
 });
 
-btnLog.addEventListener('click', showLogView);
-btnBackFromLog.addEventListener('click', hideLogView);
-btnRefreshLog.addEventListener('click', refreshLog);
-
 mainProfileSelect.addEventListener('change', async () => {
-  const name = mainProfileSelect.value;
   try {
-    await invoke('switch_profile', { name });
+    await invoke('switch_profile', { name: mainProfileSelect.value });
     clearMessage();
   } catch (e) {
     showMessage(`Failed: ${e}`, true);
   }
 });
 
+// Settings save button
+document.getElementById('btn-save-config')?.addEventListener('click', saveProfileConfig);
+
 // ── Init ─────────────────────────────────────────────────────
-async function init() {
+(async () => {
   await loadProfiles();
   await updateStatus();
-}
+})();
 
-init();
-
-// 1-second status timer
 setInterval(updateStatus, 1000);

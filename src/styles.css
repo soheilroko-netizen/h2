@@ -1,4 +1,4 @@
-/* ── CSS reset & vars ────────────────────────────────────── */
+/* ── Vars ─────────────────────────────────────────────────── */
 :root {
   --bg-primary: #1a1a2e;
   --bg-secondary: #16213e;
@@ -11,192 +11,74 @@
   --border: #2c3e50;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
-}
-
-#app {
-  width: 100%;
-  height: 100%;
-}
-
-/* ── Main window ────────────────────────────────────────── */
-body.main-window {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   height: 100vh;
   overflow: hidden;
 }
 
-body.main-window #app {
+body.main-window {
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
+#app { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+
+/* ── Container ───────────────────────────────────────────── */
 .container {
   background: var(--bg-secondary);
   border-radius: 16px;
-  padding: 32px;
+  padding: 28px;
   width: 450px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-/* ── Settings window ────────────────────────────────────── */
-body.settings-window {
-  padding: 24px;
-  overflow-y: auto;
-}
-
-body.settings-window #app {
-  display: flex;
-  justify-content: center;
-}
-
-.settings-container {
-  width: 100%;
-  max-width: 540px;
-}
-
-/* ── Shared ─────────────────────────────────────────────── */
 h1 {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--accent);
 }
 
 .subtitle {
   text-align: center;
   color: var(--text-secondary);
-  font-size: 14px;
-  margin-bottom: 32px;
-}
-
-/* ── Status card ────────────────────────────────────────── */
-.status-card {
-  background: var(--bg-card);
-  border-radius: 12px;
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-  border: 1px solid var(--border);
-}
-
-.status-indicator {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--error);
-  transition: background 0.3s;
-  flex-shrink: 0;
-}
-
-.status-indicator.connected {
-  background: var(--success);
-  box-shadow: 0 0 12px var(--success);
-}
-
-#status-text {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.status-address {
-  margin-left: auto;
   font-size: 13px;
-  font-family: 'Courier New', monospace;
-  color: var(--text-secondary);
+  margin-bottom: 24px;
 }
 
-/* ── Info rows ──────────────────────────────────────────── */
-.server-info {
-  background: var(--bg-card);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 20px;
-  border: 1px solid var(--border);
-}
-
-.info-row {
+/* ── Profile selector ────────────────────────────────────── */
+.profile-bar-main {
   display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: stretch;
 }
 
-.info-row:not(:last-child) {
-  border-bottom: 1px solid var(--border);
-}
-
-.label {
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.value {
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  font-family: 'Courier New', monospace;
-}
-
-/* ── Buttons ────────────────────────────────────────────── */
-.controls {
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.btn {
+.profile-bar-main .profile-select {
   flex: 1;
-  padding: 12px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--success);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #27ae60;
-}
-
-.btn-secondary {
+  min-height: 36px;
+  padding: 6px 10px;
   background: var(--bg-card);
   color: var(--text-primary);
   border: 1px solid var(--border);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .btn-small {
-  padding: 8px 14px;
+  min-height: 36px;
+  padding: 6px 14px;
   background: var(--bg-card);
   color: var(--text-primary);
   border: 1px solid var(--border);
@@ -207,138 +89,134 @@ h1 {
   transition: background 0.2s;
 }
 
-.btn-small:hover {
-  background: var(--border);
+.btn-small:hover { background: var(--border); }
+
+/* ── Status card ─────────────────────────────────────────── */
+.status-card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
 }
 
-/* ── Messages ───────────────────────────────────────────── */
+.status-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--error);
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+
+.status-indicator.connected {
+  background: var(--success);
+  box-shadow: 0 0 10px var(--success);
+}
+
+#status-text {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.status-address {
+  margin-left: auto;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+  color: var(--text-secondary);
+}
+
+/* ── Info rows ───────────────────────────────────────────── */
+.server-info {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.info-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+
+.label { color: var(--text-secondary); font-size: 13px; }
+
+.value {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--success); color: white; }
+.btn-primary:hover:not(:disabled) { background: #27ae60; }
+.btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); }
+.btn-secondary:hover:not(:disabled) { background: var(--border); }
+
+/* ── Messages ────────────────────────────────────────────── */
 .message {
   text-align: center;
-  padding: 10px;
+  padding: 8px;
   border-radius: 8px;
   font-size: 13px;
-  min-height: 36px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-top: 8px;
 }
 
-.message.success {
-  background: rgba(46, 204, 113, 0.2);
-  color: var(--success);
-  border: 1px solid var(--success);
-}
+.message.success { background: rgba(46, 204, 113, 0.2); color: var(--success); border: 1px solid var(--success); }
+.message.error { background: rgba(231, 76, 60, 0.2); color: var(--error); border: 1px solid var(--error); }
 
-.message.error {
-  background: rgba(231, 76, 60, 0.2);
-  color: var(--error);
-  border: 1px solid var(--error);
-}
-
-/* ── Profile bar (main) ────────────────────────────────── */
-.profile-bar-main {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  align-items: center;
-}
-
-.profile-bar-main .profile-select {
-  flex: 1;
-  padding: 8px 10px;
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-/* ── Log viewer ─────────────────────────────────────────── */
+/* ── Log viewer ──────────────────────────────────────────── */
 .log-content {
   background: #1a1a1a;
   color: #0f0;
   padding: 12px;
   border-radius: 6px;
-  max-height: 400px;
+  max-height: 350px;
   overflow-y: auto;
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-all;
 }
 
-/* ── Settings window tabs ───────────────────────────────── */
-.settings-header {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.settings-header h1 {
-  font-size: 28px;
-}
-
-.tab-nav {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 24px;
-  border-radius: 8px;
-  background: var(--bg-card);
-  padding: 4px;
-  border: 1px solid var(--border);
-}
-
-.tab-btn {
-  flex: 1;
-  padding: 10px 16px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
-}
-
-.tab-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-primary);
-}
-
-.tab-btn.active {
-  background: var(--accent);
-  color: white;
-}
-
-.tab-panel {
-  display: none;
-}
-
-.tab-panel.active {
-  display: block;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-[hidden] {
-  display: none !important;
-}
-
-/* ── Settings form ──────────────────────────────────────── */
-.form-group {
-  margin-bottom: 14px;
-}
+/* ── Settings form ───────────────────────────────────────── */
+.form-group { margin-bottom: 12px; }
 
 .form-group label {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
   color: #e2e8f0;
 }
 
@@ -346,13 +224,12 @@ h1 {
 .form-group select,
 .form-group textarea {
   width: 100%;
-  padding: 9px 12px;
-  font-size: 14px;
+  padding: 8px 10px;
+  font-size: 13px;
   background: #1e293b;
   border: 1px solid #334155;
   border-radius: 6px;
   color: #e2e8f0;
-  transition: border-color 0.2s;
   font-family: inherit;
 }
 
@@ -361,74 +238,4 @@ h1 {
 .form-group textarea:focus {
   outline: none;
   border-color: #e94560;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.checkbox-label input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: #4ade80;
-  flex-shrink: 0;
-}
-
-.checkbox-label span {
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-.profile-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-  padding: 12px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.profile-bar label {
-  font-weight: 500;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.profile-bar select {
-  flex: 1;
-  padding: 8px 10px;
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.profile-bar button {
-  padding: 8px 14px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background 0.2s;
-}
-
-.profile-bar button:hover {
-  background: var(--border);
-}
-
-.settings-controls {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
 }

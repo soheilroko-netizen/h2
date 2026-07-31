@@ -230,6 +230,10 @@ impl ProxyManager {
         }
     }
 
+    pub fn pid(&self) -> Option<u32> {
+        self.child.lock().unwrap().as_ref().and_then(|c| c.id())
+    }
+
     fn debug_log(&self, msg: impl AsRef<str>) {
         use std::io::Write;
         use std::time::{SystemTime, UNIX_EPOCH};

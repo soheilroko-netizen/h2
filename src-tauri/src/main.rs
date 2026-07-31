@@ -241,20 +241,54 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     let running = proxy.is_running();
     drop(proxy);
 
+    let profile_name = ProfileStore::load()
+        .map(|s| s.active_profile)
+        .unwrap_or_else(|_| "Default".to_string());
+
     if !running {
         return Ok(FullStatus {
             running: false,
-            uptime: 0,
+            profile: profile_name,
+            server: None,
+            uptime_secs: 0,
+            pid: None,
             traffic_up: 0,
             traffic_down: 0,
             total_up: 0,
             total_down: 0,
+            log_lines: Vec::new(),
         });
     }
 
     let started_at = state.started_at.lock().unwrap();
-    let uptime = started_at.map(|s| s.elapsed().as_secs()).unwrap_or(0);
+    let uptime_secs = started_at.map(|s| s.elapsed().as_secs()).unwrap_or(0);
     drop(started_at);
+
+    // Get server address from active config
+    let server_addr = ProfileStore::load()
+        .ok()
+        .and_then(|s| s.get_active_config().ok())
+        .map(|c| c.server_address.clone());
+
+    // Get PID from proxy
+    let proxy2 = state.proxy.lock().unwrap();
+    let pid = proxy2.pid();
+    let log_path = proxy2.debug_log_path.clone();
+    drop(proxy2);
+
+    // Read last 100 log lines
+    let log_lines: Vec<String> = std::fs::read_to_string(&log_path)
+        .map(|f| {
+            f.lines()
+                .rev()
+                .take(100)
+                .map(|l| l.to_string())
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect()
+        })
+        .unwrap_or_default();
 
     let client = sing_box_client();
 
@@ -317,22 +351,30 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
 
     Ok(FullStatus {
         running: true,
-        uptime,
+        profile: profile_name,
+        server: server_addr,
+        uptime_secs,
+        pid,
         traffic_up,
         traffic_down,
         total_up: cur_up,
         total_down: cur_down,
+        log_lines,
     })
 }
 
 #[derive(serde::Serialize)]
 struct FullStatus {
     running: bool,
-    uptime: u64,
+    profile: String,
+    server: Option<String>,
+    uptime_secs: u64,
+    pid: Option<u32>,
     traffic_up: u64,
     traffic_down: u64,
     total_up: u64,
     total_down: u64,
+    log_lines: Vec<String>,
 }
 
 #[tauri::command]
