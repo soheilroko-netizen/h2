@@ -63,6 +63,36 @@ h1 {
   align-items: stretch;
 }
 
+/* ── Mode toggle ─────────────────────────────────────────── */
+.mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mode-btn.active {
+  background: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+
 .profile-bar-main .profile-select {
   flex: 1;
   min-height: 36px;

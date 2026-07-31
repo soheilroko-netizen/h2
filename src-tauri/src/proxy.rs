@@ -448,8 +448,9 @@ impl ProxyManager {
             }
         }
 
-        // Determine final outbound based on Hysteria2 enabled
-        let final_outbound = if c.h2_enabled { "h2-out" } else { "ss-out" };
+        // Determine final outbound based on mode
+        let h2_mode = c.mode == "hysteria2";
+        let final_outbound = if h2_mode { "h2-out" } else { "ss-out" };
 
         let mut cfg = SbConfig {
             log: SbLog {
@@ -649,8 +650,8 @@ impl ProxyManager {
             },
         ];
 
-        // Add Hysteria2 outbound if enabled
-        if c.h2_enabled {
+        // Add Hysteria2 outbound if mode is hysteria2
+        if self.config.mode == "hysteria2" {
             outbounds.push(SbOutbound {
                 typ: "hysteria2".into(),
                 tag: "h2-out".into(),

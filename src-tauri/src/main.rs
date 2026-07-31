@@ -171,6 +171,26 @@ fn save_config(config: Config) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn set_mode(mode: String, state: State<AppState>) -> Result<String, String> {
+    // Stop proxy if running (mode change requires restart)
+    {
+        let mut proxy = state.proxy.lock().unwrap();
+        if proxy.is_running() {
+            proxy.stop().map_err(|e| e.to_string())?;
+            *state.started_at.lock().unwrap() = None;
+            *state.prev_total.lock().unwrap() = (0, 0);
+            *state.prev_time.lock().unwrap() = None;
+        }
+    }
+    // Save mode to active profile
+    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
+    let mut config = store.get_active_config().map_err(|e| e.to_string())?;
+    config.mode = mode.clone();
+    store.update_active_config(config).map_err(|e| e.to_string())?;
+    Ok(format!("Mode set to '{}'", mode))
+}
+
+#[tauri::command]
 fn get_profiles() -> Result<ProfileStore, String> {
     ProfileStore::load().map_err(|e| e.to_string())
 }
@@ -615,6 +635,7 @@ fn main() {
             get_full_status,
             get_log,
             open_settings_window,
+            set_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");

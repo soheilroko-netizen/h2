@@ -24,6 +24,9 @@ pub struct Config {
     #[serde(default)]
     pub split_rules: Vec<SplitRule>,
 
+    #[serde(default = "default_mode")]
+    pub mode: String,
+
     // Hysteria2 fields
     #[serde(default)]
     pub h2_enabled: bool,
@@ -50,6 +53,7 @@ fn default_h2_insecure() -> bool { false }
 fn default_h2_obfs() -> String { "salamander".to_string() }
 fn default_h2_obfs_password() -> String { "testobfspass".to_string() }
 fn default_h2_mport() -> String { "40001-45000".to_string() }
+fn default_mode() -> String { "shadowtls".to_string() }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SplitRule {
@@ -90,6 +94,7 @@ impl Default for Config {
             socks5_port: 1080,
             mtu: None,
             split_rules: vec![],
+            mode: "shadowtls".to_string(),
             h2_enabled: false,
             h2_port: 40001,
             h2_password: "testpass1".to_string(),

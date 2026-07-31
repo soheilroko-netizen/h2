@@ -42,6 +42,9 @@ interface Config {
   h2_obfs?: string;
   h2_obfs_password?: string;
   h2_mport?: string;
+
+  // Mode
+  mode?: string;
 }
 
 // ── Elements ─────────────────────────────────────────────────
@@ -347,9 +350,49 @@ mainProfileSelect.addEventListener('change', async () => {
 // Settings save button
 document.getElementById('btn-save-config')?.addEventListener('click', saveProfileConfig);
 
+// ── Mode toggle ───────────────────────────────────────────────
+async function loadModeToggle() {
+  try {
+    const config = await invoke<Config>('get_config');
+    const mode = config.mode || 'shadowtls';
+    updateModeToggleUI(mode);
+  } catch (e) {
+    console.error('Failed to load mode:', e);
+  }
+}
+
+function updateModeToggleUI(mode: string) {
+  const stlsBtn = document.getElementById('mode-stls');
+  const h2Btn = document.getElementById('mode-h2');
+  if (!stlsBtn || !h2Btn) return;
+  stlsBtn.classList.toggle('active', mode === 'shadowtls');
+  h2Btn.classList.toggle('active', mode === 'hysteria2');
+}
+
+document.getElementById('mode-stls')?.addEventListener('click', async () => {
+  try {
+    await invoke('set_mode', { mode: 'shadowtls' });
+    updateModeToggleUI('shadowtls');
+    await updateStatus();
+  } catch (e) {
+    showMessage(`Failed: ${e}`, true);
+  }
+});
+
+document.getElementById('mode-h2')?.addEventListener('click', async () => {
+  try {
+    await invoke('set_mode', { mode: 'hysteria2' });
+    updateModeToggleUI('hysteria2');
+    await updateStatus();
+  } catch (e) {
+    showMessage(`Failed: ${e}`, true);
+  }
+});
+
 // ── Init ─────────────────────────────────────────────────────
 (async () => {
   await loadProfiles();
+  await loadModeToggle();
   await updateStatus();
 })();
 
