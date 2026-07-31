@@ -231,7 +231,7 @@ impl ProxyManager {
     }
 
     pub fn pid(&self) -> Option<u32> {
-        self.child.lock().unwrap().as_ref().and_then(|c| c.id())
+        self.child.lock().unwrap().as_ref().map(|c| c.id())
     }
 
     fn debug_log(&self, msg: impl AsRef<str>) {
