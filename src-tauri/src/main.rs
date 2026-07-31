@@ -49,8 +49,8 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 
-use crate::config;
-use crate::proxy::ProxyManager;
+use config;
+use proxy::ProxyManager;
 
 mod proxy;
 mod sysdns;
