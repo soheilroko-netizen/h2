@@ -49,10 +49,9 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 
-use config::{self, Config};
+use config;
 use proxy::ProxyManager;
 
-mod config;
 mod proxy;
 mod sysdns;
 
