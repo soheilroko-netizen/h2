@@ -1,3 +1,4 @@
+/* ── CSS reset & vars ────────────────────────────────────── */
 :root {
   --bg-primary: #1a1a2e;
   --bg-secondary: #16213e;
@@ -20,6 +21,15 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Main window ────────────────────────────────────────── */
+body.main-window {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -27,9 +37,7 @@ body {
   overflow: hidden;
 }
 
-#app {
-  width: 100%;
-  height: 100%;
+body.main-window #app {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -43,6 +51,23 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
+/* ── Settings window ────────────────────────────────────── */
+body.settings-window {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+body.settings-window #app {
+  display: flex;
+  justify-content: center;
+}
+
+.settings-container {
+  width: 100%;
+  max-width: 540px;
+}
+
+/* ── Shared ─────────────────────────────────────────────── */
 h1 {
   font-size: 32px;
   font-weight: 700;
@@ -58,14 +83,15 @@ h1 {
   margin-bottom: 32px;
 }
 
+/* ── Status card ────────────────────────────────────────── */
 .status-card {
   background: var(--bg-card);
   border-radius: 12px;
-  padding: 20px;
+  padding: 16px 20px;
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   border: 1px solid var(--border);
 }
 
@@ -75,6 +101,7 @@ h1 {
   border-radius: 50%;
   background: var(--error);
   transition: background 0.3s;
+  flex-shrink: 0;
 }
 
 .status-indicator.connected {
@@ -87,11 +114,19 @@ h1 {
   font-weight: 600;
 }
 
+.status-address {
+  margin-left: auto;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  color: var(--text-secondary);
+}
+
+/* ── Info rows ──────────────────────────────────────────── */
 .server-info {
   background: var(--bg-card);
   border-radius: 12px;
   padding: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   border: 1px solid var(--border);
 }
 
@@ -117,65 +152,23 @@ h1 {
   font-family: 'Courier New', monospace;
 }
 
+/* ── Buttons ────────────────────────────────────────────── */
 .controls {
   display: flex;
   gap: 10px;
-  margin-top: 24px;
-}
-
-.settings-form {
-  width: 100%;
   margin-top: 20px;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 6px;
-  color: #e2e8f0;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 10px 12px;
-  font-size: 14px;
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  color: #e2e8f0;
-  transition: border-color 0.2s;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #e94560;
-}
-
-.btn-tertiary {
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-}
-
-.btn-tertiary:hover:not(:disabled) {
-  background: var(--border);
-  transform: translateY(-2px);
 }
 
 .btn {
   flex: 1;
-  padding: 14px 24px;
+  padding: 12px 20px;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
+  font-family: inherit;
 }
 
 .btn:disabled {
@@ -190,33 +183,45 @@ h1 {
 
 .btn-primary:hover:not(:disabled) {
   background: #27ae60;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(46, 204, 113, 0.4);
 }
 
 .btn-secondary {
-  background: var(--error);
-  color: white;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #c0392b;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+  background: var(--border);
 }
 
+.btn-small {
+  padding: 8px 14px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+
+.btn-small:hover {
+  background: var(--border);
+}
+
+/* ── Messages ───────────────────────────────────────────── */
 .message {
   text-align: center;
-  padding: 12px;
+  padding: 10px;
   border-radius: 8px;
-  font-size: 14px;
-  min-height: 44px;
+  font-size: 13px;
+  min-height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-
-/* ── settings message kept for backwards compat ─────────────── */
 
 .message.success {
   background: rgba(46, 204, 113, 0.2);
@@ -230,55 +235,7 @@ h1 {
   border: 1px solid var(--error);
 }
 
-/* Settings window — wider so all parameters fit without fullscreen */
-.settings-container {
-  width: 560px;
-}
-
-.profile-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-  padding: 12px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.profile-bar label {
-  font-weight: 500;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.profile-bar select {
-  flex: 1;
-  padding: 8px 10px;
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.profile-bar button {
-  padding: 8px 14px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background 0.2s;
-}
-
-.profile-bar button:hover {
-  background: var(--border);
-}
-
-/* ── Main view profile bar ─────────────────────────────────── */
-
+/* ── Profile bar (main) ────────────────────────────────── */
 .profile-bar-main {
   display: flex;
   gap: 8px;
@@ -298,47 +255,20 @@ h1 {
   cursor: pointer;
 }
 
-.btn-small {
-  padding: 8px 14px;
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
+/* ── Log viewer ─────────────────────────────────────────── */
+.log-content {
+  background: #1a1a1a;
+  color: #0f0;
+  padding: 12px;
   border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-family: inherit;
-  transition: background 0.2s;
-}
-
-.btn-small:hover {
-  background: var(--border);
-}
-
-/* ── Ping button ────────────────────────────────────────────── */
-
-.ping-btn {
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 2px 10px;
-  cursor: pointer;
+  max-height: 400px;
+  overflow-y: auto;
   font-size: 12px;
-  font-family: inherit;
-  transition: background 0.2s;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
-.ping-btn:hover {
-  background: var(--border);
-}
-
-/* ── Settings window tabs ─────────────────────────────────────── */
-
-.settings-container {
-  width: 100%;
-  max-width: 560px;
-}
-
+/* ── Settings window tabs ───────────────────────────────── */
 .settings-header {
   text-align: center;
   margin-bottom: 24px;
@@ -346,14 +276,6 @@ h1 {
 
 .settings-header h1 {
   font-size: 28px;
-  font-weight: 700;
-  color: var(--accent);
-  margin-bottom: 4px;
-}
-
-.settings-header .subtitle {
-  color: var(--text-secondary);
-  font-size: 14px;
 }
 
 .tab-nav {
@@ -396,7 +318,6 @@ h1 {
 
 .tab-panel.active {
   display: block;
-  animation: fadeIn 0.2s ease;
 }
 
 @keyframes fadeIn {
@@ -408,15 +329,16 @@ h1 {
   display: none !important;
 }
 
+/* ── Settings form ──────────────────────────────────────── */
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .form-group label {
   display: block;
   font-size: 13px;
   font-weight: 500;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   color: #e2e8f0;
 }
 
@@ -424,7 +346,7 @@ h1 {
 .form-group select,
 .form-group textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 9px 12px;
   font-size: 14px;
   background: #1e293b;
   border: 1px solid #334155;
@@ -458,68 +380,6 @@ h1 {
 .checkbox-label span {
   font-size: 14px;
   color: var(--text-primary);
-}
-
-.controls {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
-.btn {
-  padding: 10px 24px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-  border: 1px solid transparent;
-  font-family: inherit;
-}
-
-.btn-primary {
-  background: #4ade80;
-  color: #1a1a1a;
-  border-color: #4ade80;
-}
-
-.btn-primary:hover {
-  background: #3bd870;
-  border-color: #3bd870;
-}
-
-.btn-secondary {
-  background: #333;
-  color: #ddd;
-  border-color: #444;
-}
-
-.btn-secondary:hover {
-  background: #444;
-  border-color: #555;
-}
-
-.message {
-  margin-top: 12px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  text-align: center;
-}
-
-.message.success {
-  background: rgba(74, 222, 128, 0.15);
-  color: #4ade80;
-  border: 1px solid rgba(74, 222, 128, 0.3);
-}
-
-.message.error {
-  background: rgba(248, 113, 113, 0.15);
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.3);
 }
 
 .profile-bar {
@@ -564,18 +424,11 @@ h1 {
   background: var(--border);
 }
 
-.btn-small {
-  padding: 8px 14px;
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-family: inherit;
-  transition: background 0.2s;
-}
-
-.btn-small:hover {
-  background: var(--border);
+.settings-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }

@@ -1,156 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>dakal-tls — Settings</title>
-  <link rel="stylesheet" href="/src/styles.css" />
-</head>
-<body>
-  <div id="app">
-    <div class="settings-container">
-      <div class="settings-header">
-        <h1>Settings</h1>
-        <p class="subtitle">Configure your VPN connection</p>
-      </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dakal-tls — Settings</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body class="settings-window">
+    <div id="app">
+      <div class="settings-container">
+        <div class="settings-header">
+          <h1>Settings</h1>
+          <p class="subtitle">Configure your VPN connection</p>
+        </div>
 
-      <!-- Tab Navigation -->
-      <div class="tab-nav" role="tablist">
-        <button role="tab" class="tab-btn active" data-tab="app" aria-selected="true">App Settings</button>
-        <button role="tab" class="tab-btn" data-tab="profile" aria-selected="false">Profile</button>
-        <button role="tab" class="tab-btn" data-tab="split" aria-selected="false">Split Tunneling</button>
-      </div>
+        <!-- Tab Navigation -->
+        <div class="tab-nav" role="tablist">
+          <button class="tab-btn active" data-tab="app" role="tab" aria-selected="true">App Settings</button>
+          <button class="tab-btn" data-tab="profile" role="tab" aria-selected="false">Profile</button>
+          <button class="tab-btn" data-tab="split" role="tab" aria-selected="false">Split Tunneling</button>
+        </div>
 
-      <!-- Tab Panels -->
-      <div role="tabpanel" class="tab-panel active" id="tab-app" aria-labelledby="tab-app">
-        <form id="app-form">
+        <!-- Tab: App Settings -->
+        <div role="tabpanel" class="tab-panel active" id="tab-app">
           <div class="form-group">
-            <label for="theme">Theme</label>
-            <select id="theme" name="theme">
-              <option value="dark">Dark</option>
+            <label>Theme</label>
+            <select id="app-theme">
+              <option value="dark" selected>Dark</option>
               <option value="light">Light</option>
               <option value="system">System</option>
             </select>
           </div>
-
           <div class="form-group">
-            <label for="language">Language</label>
-            <select id="language" name="language">
-              <option value="en">English</option>
+            <label>Language</label>
+            <select id="app-language">
+              <option value="en" selected>English</option>
               <option value="fa">فارسی</option>
             </select>
           </div>
-
+          <div class="form-group">
+            <label>Startup</label>
+            <select id="app-startup">
+              <option value="none" selected>Do nothing</option>
+              <option value="last">Load last profile</option>
+              <option value="profile1">Profile 1</option>
+            </select>
+          </div>
           <div class="form-group">
             <label class="checkbox-label">
-              <input type="checkbox" id="start_minimized" name="start_minimized" />
-              <span>Start minimized to tray</span>
+              <input type="checkbox" id="app-start-minimized" />
+              <span>Start minimized</span>
             </label>
           </div>
-
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" id="auto_connect" name="auto_connect" />
-              <span>Auto-connect on startup</span>
-            </label>
+          <div class="settings-controls">
+            <button id="btn-save-app" class="btn btn-primary">Save</button>
           </div>
+          <div id="app-message" class="message"></div>
+        </div>
 
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" id="show_notifications" name="show_notifications" checked />
-              <span>Show connection notifications</span>
-            </label>
-          </div>
-
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" id="check_updates" name="check_updates" checked />
-              <span>Check for updates automatically</span>
-            </label>
-          </div>
-
-          <div class="controls">
-            <button type="button" id="btn-back-app" class="btn btn-secondary">Back</button>
-          </div>
-        </form>
-      </div>
-
-      <div role="tabpanel" class="tab-panel" id="tab-profile" aria-labelledby="tab-profile" hidden>
-        <form id="profile-form">
+        <!-- Tab: Profile -->
+        <div role="tabpanel" class="tab-panel" id="tab-profile" hidden>
           <div class="profile-bar">
-            <label for="profile-select">Profile:</label>
-            <select id="profile-select"></select>
-            <button type="button" id="btn-new-profile" class="btn-small">New</button>
-            <button type="button" id="btn-delete-profile" class="btn-small">Delete</button>
+            <label>Profile:</label>
+            <select id="settings-profile-select">
+              <option value="Default">Default</option>
+            </select>
+            <button id="btn-new-profile" title="New">+</button>
+            <button id="btn-delete-profile" title="Delete">−</button>
           </div>
-
           <div class="form-group">
-            <label for="server_address">Server Address</label>
-            <input type="text" id="server_address" name="server_address" placeholder="ns.baft.uk" required />
+            <label>ShadowTLS Server IP:Port</label>
+            <input type="text" id="cfg-server" placeholder="1.2.3.4:443" />
           </div>
-
           <div class="form-group">
-            <label for="ss_port">Shadowsocks Port</label>
-            <input type="number" id="ss_port" name="ss_port" placeholder="8380" min="1" max="65535" required />
+            <label>ShadowTLS Password</label>
+            <input type="text" id="cfg-password" placeholder="password" />
           </div>
-
           <div class="form-group">
-            <label for="ss_password">Shadowsocks Password</label>
-            <input type="password" id="ss_password" name="ss_password" placeholder="tE+3/qlN/..." required />
+            <label>ShadowTLS Version</label>
+            <select id="cfg-version">
+              <option value="0">Version 0</option>
+              <option value="1" selected>Version 1</option>
+              <option value="2">Version 2</option>
+              <option value="3">Version 3</option>
+            </select>
           </div>
-
           <div class="form-group">
-            <label for="stls_port">ShadowTLS Port</label>
-            <input type="number" id="stls_port" name="stls_port" placeholder="8553" min="1" max="65535" required />
+            <label>Shadowsocks Server IP:Port</label>
+            <input type="text" id="cfg-ss-server" placeholder="5.6.7.8:8388" />
           </div>
-
           <div class="form-group">
-            <label for="stls_password">ShadowTLS Password</label>
-            <input type="password" id="stls_password" name="stls_password" placeholder="y2lachetore" required />
+            <label>Shadowsocks Password</label>
+            <input type="text" id="cfg-ss-password" placeholder="password" />
           </div>
-
           <div class="form-group">
-            <label for="stls_sni">ShadowTLS SNI (Server Name)</label>
-            <input type="text" id="stls_sni" name="stls_sni" placeholder="dl.google.com" required />
+            <label>Shadowsocks Method</label>
+            <select id="cfg-ss-method">
+              <option value="2022-blake3-aes-128-gcm" selected>2022-blake3-aes-128-gcm</option>
+              <option value="2022-blake3-aes-256-gcm">2022-blake3-aes-256-gcm</option>
+              <option value="2022-blake3-chacha20-poly1305">2022-blake3-chacha20-poly1305</option>
+              <option value="aes-128-gcm">aes-128-gcm</option>
+              <option value="aes-256-gcm">aes-256-gcm</option>
+              <option value="chacha20-ietf-poly1305">chacha20-ietf-poly1305</option>
+              <option value="xchacha20-ietf-poly1305">xchacha20-ietf-poly1305</option>
+            </select>
           </div>
-
-          <div class="form-group">
-            <label for="socks5_port">SOCKS5 Local Port</label>
-            <input type="number" id="socks5_port" name="socks5_port" placeholder="1080" min="1" max="65535" required />
+          <div class="settings-controls">
+            <button id="btn-save-profile" class="btn btn-primary">Save</button>
+            <button id="btn-switch-profile" class="btn btn-secondary">Switch</button>
           </div>
-
-          <div class="form-group">
-            <label for="mtu">MTU (leave empty for default 1500)</label>
-            <input type="number" id="mtu" name="mtu" placeholder="1500" min="1280" max="9000" />
-          </div>
-
-          <div class="controls">
-            <button type="submit" class="btn btn-primary">Save</button>
-            <button type="button" id="btn-back-profile" class="btn btn-secondary">Back</button>
-          </div>
-
-          <div id="settings-message" class="message"></div>
-        </form>
-      </div>
-
-      <div role="tabpanel" class="tab-panel" id="tab-split" aria-labelledby="tab-split" hidden>
-        <div class="form-group">
-          <label for="split_rules">Split Tunneling — domains to route directly (one per line)</label>
-          <div style="font-size: 12px; color: #888; margin-bottom: 6px">
-            Patterns: <code>*.example.com</code> (suffix), <code>example.com</code> (exact), <code>*keyword*</code> (keyword)
-          </div>
-          <textarea id="split_rules" name="split_rules" rows="6" placeholder="*.ir&#10;aparat.com&#10;divar.ir" style="width: 100%; padding: 8px; border: 1px solid #444; background: #2a2a2a; color: #e0e0e0; border-radius: 4px; font-family: monospace; resize: vertical"></textarea>
+          <div id="profile-message" class="message"></div>
         </div>
 
-        <div class="controls">
-          <button type="button" id="btn-save-split" class="btn btn-primary">Save Split Rules</button>
-          <button type="button" id="btn-back-split" class="btn btn-secondary">Back</button>
+        <!-- Tab: Split Tunneling -->
+        <div role="tabpanel" class="tab-panel" id="tab-split" hidden>
+          <div class="form-group">
+            <label>Domain Rules (one per line)</label>
+            <textarea id="cfg-split-domains" rows="6" placeholder="google.com&#10;github.com&#10;*.cloudflare.com"></textarea>
+          </div>
+          <div class="settings-controls">
+            <button id="btn-save-split" class="btn btn-primary">Save</button>
+          </div>
+          <div id="split-message" class="message"></div>
         </div>
-
-        <div id="settings-message" class="message"></div>
       </div>
     </div>
-  </div>
-  <script type="module" src="/src/settings.ts"></script>
-</body>
+    <script type="module" src="/src/settings.ts"></script>
+  </body>
 </html>

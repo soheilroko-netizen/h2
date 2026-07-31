@@ -6,14 +6,12 @@
     <title>dakal-tls v5</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
-  <body>
+  <body class="main-window">
     <div id="app">
-      <!-- Main View -->
-      <div id="main-view" class="container">
+      <div class="container">
         <h1>shado v5</h1>
         <p class="subtitle">ShadowTLS + Shadowsocks VPN</p>
 
-        <!-- Profile selector -->
         <div class="profile-bar-main">
           <select id="main-profile-select" class="profile-select">
             <option value="Default">Default</option>
@@ -25,13 +23,10 @@
         <div class="status-card">
           <div class="status-indicator" id="status-dot"></div>
           <span id="status-text">Disconnected</span>
+          <span class="status-address" id="status-address"></span>
         </div>
 
         <div class="server-info">
-          <div class="info-row">
-            <span class="label">Server:</span>
-            <span class="value" id="server-value">-</span>
-          </div>
           <div class="info-row">
             <span class="label">Ping:</span>
             <span class="value" id="ping-value">-</span>
@@ -41,7 +36,7 @@
             <span class="value" id="uptime-value">-</span>
           </div>
           <div class="info-row">
-            <span class="label">Traffic:</span>
+            <span class="label">Current:</span>
             <span class="value" id="traffic-value">↑ 0 B/s  ↓ 0 B/s</span>
           </div>
           <div class="info-row">
@@ -58,7 +53,6 @@
         <div id="message" class="message"></div>
       </div>
 
-      <!-- Log Viewer View -->
       <div id="log-view" class="container" style="display: none">
         <h1>Connection Log</h1>
         <p class="subtitle">sing-box runtime logs</p>
@@ -66,7 +60,7 @@
           <button type="button" id="btn-refresh-log" class="btn btn-secondary">Refresh</button>
           <button type="button" id="btn-back-from-log" class="btn btn-secondary">Back</button>
         </div>
-        <pre id="log-content" style="background: #1a1a1a; color: #0f0; padding: 12px; border-radius: 6px; max-height: 400px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-break: break-all"></pre>
+        <pre id="log-content" class="log-content"></pre>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
