@@ -61,6 +61,8 @@ mod sysdns;
 struct AppState {
     proxy: Mutex<ProxyManager>,
     started_at: Mutex<Option<Instant>>,
+    prev_total: Mutex<(u64, u64)>,
+    prev_time: Mutex<Option<Instant>>,
 }
 
 // ── Tray menu rebuild helper ───────────────────────────────────
@@ -141,6 +143,8 @@ fn stop_proxy(app: tauri::AppHandle, state: State<AppState>) -> Result<String, S
     let mut proxy = state.proxy.lock().unwrap();
     let result = proxy.stop().map_err(|e| e.to_string())?;
     *state.started_at.lock().unwrap() = None;
+    *state.prev_total.lock().unwrap() = (0, 0);
+    *state.prev_time.lock().unwrap() = None;
     drop(proxy);
     update_tray_state(&app);
     Ok(result)
@@ -185,24 +189,6 @@ fn delete_profile(name: String) -> Result<String, String> {
     Ok(format!("Deleted '{}'", name))
 }
 
-#[tauri::command]
-fn get_traffic() -> Result<String, String> {
-    let client = sing_box_client();
-    let resp = client
-        .get("http://127.0.0.1:9097/traffic")
-        .header("Authorization", "Bearer dakal")
-        .send()
-        .map_err(|e| format!("request: {e}"))?;
-
-    if !resp.status().is_success() {
-        return Ok(r#"{"up":0,"down":0}"#.into());
-    }
-
-    let v: serde_json::Value = resp.json().map_err(|e| format!("json: {e}"))?;
-    let up = v["up"].as_u64().unwrap_or(0);
-    let down = v["down"].as_u64().unwrap_or(0);
-    Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down))
-}
 
 #[tauri::command]
 fn get_total_traffic() -> Result<String, String> {
@@ -272,28 +258,16 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
 
     let client = sing_box_client();
 
-    // Parallel requests with 500ms timeout each
-    let traffic_fut = client
-        .get("http://127.0.0.1:9097/traffic")
-        .header("Authorization", "Bearer dakal")
-        .timeout(std::time::Duration::from_millis(500))
-        .send();
-
-    let total_fut = client
+    // /traffic is SSE (not JSON) — only /connections gives totals
+    let connections_resp = client
         .get("http://127.0.0.1:9097/connections")
         .header("Authorization", "Bearer dakal")
-        .timeout(std::time::Duration::from_millis(500))
-        .send();
+        .timeout(std::time::Duration::from_secs(2))
+        .send()
+        .ok()
+        .and_then(|r| r.json::<serde_json::Value>().ok());
 
-    // Execute both requests
-    let traffic_resp = traffic_fut.ok().and_then(|r| r.json::<serde_json::Value>().ok());
-    let total_resp = total_fut.ok().and_then(|r| r.json::<serde_json::Value>().ok());
-
-    let traffic = traffic_resp
-        .map(|v| (v["up"].as_u64().unwrap_or(0), v["down"].as_u64().unwrap_or(0)))
-        .unwrap_or((0, 0));
-
-    let total = total_resp
+    let (cur_up, cur_down) = connections_resp
         .map(|v| {
             let up = v["upload_total"].as_u64().unwrap_or(0);
             let down = v["download_total"].as_u64().unwrap_or(0);
@@ -316,13 +290,38 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
         })
         .unwrap_or((0, 0));
 
+    // Calculate traffic speed (bytes/sec) from delta
+    let now = Instant::now();
+    let mut prev_total = state.prev_total.lock().unwrap();
+    let mut prev_time = state.prev_time.lock().unwrap();
+
+    let (traffic_up, traffic_down) = if let Some(prev_t) = *prev_time {
+        let elapsed = now.duration_since(prev_t).as_secs_f64();
+        if elapsed > 0.5 {
+            let up_delta = cur_up.saturating_sub(prev_total.0);
+            let down_delta = cur_down.saturating_sub(prev_total.1);
+            *prev_total = (cur_up, cur_down);
+            *prev_time = Some(now);
+            (up_delta / elapsed) as u64, (down_delta / elapsed) as u64
+        } else {
+            // Too soon, return previous rate (0 on first call)
+            (0, 0)
+        }
+    } else {
+        *prev_total = (cur_up, cur_down);
+        *prev_time = Some(now);
+        (0, 0)
+    };
+    drop(prev_total);
+    drop(prev_time);
+
     Ok(FullStatus {
         running: true,
         uptime,
-        traffic_up: traffic.0,
-        traffic_down: traffic.1,
-        total_up: total.0,
-        total_down: total.1,
+        traffic_up,
+        traffic_down,
+        total_up: cur_up,
+        total_down: cur_down,
     })
 }
 
@@ -404,6 +403,8 @@ fn switch_profile_stop(name: String, state: State<AppState>) -> Result<String, S
     if proxy.is_running() {
         proxy.stop().map_err(|e| e.to_string())?;
         *state.started_at.lock().unwrap() = None;
+        *state.prev_total.lock().unwrap() = (0, 0);
+        *state.prev_time.lock().unwrap() = None;
     }
     drop(proxy);
 
@@ -444,6 +445,8 @@ fn main() {
         .manage(AppState {
             proxy: Mutex::new(proxy_manager),
             started_at: Mutex::new(None),
+            prev_total: Mutex::new((0, 0)),
+            prev_time: Mutex::new(None),
         })
         .setup(|app| {
             let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
@@ -566,8 +569,6 @@ fn main() {
             switch_profile,
             switch_profile_stop,
             real_ping,
-            get_traffic,
-            get_total_traffic,
             get_uptime,
             get_full_status,
             get_log,
