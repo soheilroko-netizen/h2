@@ -294,8 +294,8 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
             if up == 0 && down == 0 {
                 let arr_opt = v["connections"].as_array().or_else(|| v.as_array());
                 if let Some(arr) = arr_opt {
-                    let mut sum_up = 0;
-                    let mut sum_down = 0;
+                    let mut sum_up: u64 = 0;
+                    let mut sum_down: u64 = 0;
                     for c in arr {
                         sum_up = sum_up.saturating_add(c["upload"].as_u64().unwrap_or(0));
                         sum_down = sum_down.saturating_add(c["download"].as_u64().unwrap_or(0));
