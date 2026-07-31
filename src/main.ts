@@ -32,6 +32,16 @@ interface Config {
   socks5_port: number;
   mtu?: number;
   split_rules?: { pattern: string }[];
+
+  // Hysteria2
+  h2_enabled?: boolean;
+  h2_port?: number;
+  h2_password?: string;
+  h2_sni?: string;
+  h2_insecure?: boolean;
+  h2_obfs?: string;
+  h2_obfs_password?: string;
+  h2_mport?: string;
 }
 
 // ── Elements ─────────────────────────────────────────────────
@@ -226,6 +236,14 @@ async function loadProfileFields(name: string) {
     (document.getElementById('cfg-ss-port') as HTMLInputElement).value = String(config.ss_port);
     (document.getElementById('cfg-ss-password') as HTMLInputElement).value = config.ss_password;
     (document.getElementById('cfg-socks5-port') as HTMLInputElement).value = String(config.socks5_port);
+    (document.getElementById('cfg-h2-enabled') as HTMLInputElement).checked = config.h2_enabled || false;
+    (document.getElementById('cfg-h2-port') as HTMLInputElement).value = String(config.h2_port || 40001);
+    (document.getElementById('cfg-h2-password') as HTMLInputElement).value = config.h2_password || 'testpass1';
+    (document.getElementById('cfg-h2-sni') as HTMLInputElement).value = config.h2_sni || 'ns.baft.uk';
+    (document.getElementById('cfg-h2-insecure') as HTMLInputElement).checked = config.h2_insecure || false;
+    (document.getElementById('cfg-h2-obfs') as HTMLInputElement).value = config.h2_obfs || 'salamander';
+    (document.getElementById('cfg-h2-obfs-password') as HTMLInputElement).value = config.h2_obfs_password || 'testobfspass';
+    (document.getElementById('cfg-h2-mport') as HTMLInputElement).value = config.h2_mport || '40001-45000';
     const rules = (config.split_rules || []).map(r => r.pattern).join('\n');
     (document.getElementById('cfg-split-domains') as HTMLTextAreaElement).value = rules;
   } catch (e) {
@@ -253,6 +271,14 @@ async function saveProfileConfig() {
       ss_port: parseInt((document.getElementById('cfg-ss-port') as HTMLInputElement).value) || 8380,
       ss_password: (document.getElementById('cfg-ss-password') as HTMLInputElement).value,
       socks5_port: parseInt((document.getElementById('cfg-socks5-port') as HTMLInputElement).value) || 1080,
+      h2_enabled: (document.getElementById('cfg-h2-enabled') as HTMLInputElement).checked,
+      h2_port: parseInt((document.getElementById('cfg-h2-port') as HTMLInputElement).value) || 40001,
+      h2_password: (document.getElementById('cfg-h2-password') as HTMLInputElement).value,
+      h2_sni: (document.getElementById('cfg-h2-sni') as HTMLInputElement).value,
+      h2_insecure: (document.getElementById('cfg-h2-insecure') as HTMLInputElement).checked,
+      h2_obfs: (document.getElementById('cfg-h2-obfs') as HTMLInputElement).value,
+      h2_obfs_password: (document.getElementById('cfg-h2-obfs-password') as HTMLInputElement).value,
+      h2_mport: (document.getElementById('cfg-h2-mport') as HTMLInputElement).value,
       split_rules: (document.getElementById('cfg-split-domains') as HTMLTextAreaElement).value
         .split('\n')
         .filter(l => l.trim())

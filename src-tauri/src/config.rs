@@ -23,7 +23,33 @@ pub struct Config {
     pub mtu: Option<u32>,
     #[serde(default)]
     pub split_rules: Vec<SplitRule>,
+
+    // Hysteria2 fields
+    #[serde(default)]
+    pub h2_enabled: bool,
+    #[serde(default = "default_h2_port")]
+    pub h2_port: u16,
+    #[serde(default = "default_h2_password")]
+    pub h2_password: String,
+    #[serde(default = "default_h2_sni")]
+    pub h2_sni: String,
+    #[serde(default = "default_h2_insecure")]
+    pub h2_insecure: bool,
+    #[serde(default = "default_h2_obfs")]
+    pub h2_obfs: String,
+    #[serde(default = "default_h2_obfs_password")]
+    pub h2_obfs_password: String,
+    #[serde(default = "default_h2_mport")]
+    pub h2_mport: String,
 }
+
+fn default_h2_port() -> u16 { 40001 }
+fn default_h2_password() -> String { "testpass1".to_string() }
+fn default_h2_sni() -> String { "ns.baft.uk".to_string() }
+fn default_h2_insecure() -> bool { false }
+fn default_h2_obfs() -> String { "salamander".to_string() }
+fn default_h2_obfs_password() -> String { "testobfspass".to_string() }
+fn default_h2_mport() -> String { "40001-45000".to_string() }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SplitRule {
@@ -64,6 +90,14 @@ impl Default for Config {
             socks5_port: 1080,
             mtu: None,
             split_rules: vec![],
+            h2_enabled: false,
+            h2_port: 40001,
+            h2_password: "testpass1".to_string(),
+            h2_sni: "ns.baft.uk".to_string(),
+            h2_insecure: false,
+            h2_obfs: "salamander".to_string(),
+            h2_obfs_password: "testobfspass".to_string(),
+            h2_mport: "40001-45000".to_string(),
         }
     }
 }

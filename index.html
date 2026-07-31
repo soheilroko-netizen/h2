@@ -85,6 +85,52 @@
           <label>Socks5 Port</label>
           <input type="number" id="cfg-socks5-port" placeholder="1080" />
         </div>
+
+        <hr style="margin: 16px 0; border-color: var(--border);" />
+        <h3 style="margin-bottom: 12px; color: var(--accent);">Hysteria2</h3>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="cfg-h2-enabled" /> Enable Hysteria2
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label>Hysteria2 Port</label>
+          <input type="number" id="cfg-h2-port" placeholder="40001" />
+        </div>
+
+        <div class="form-group">
+          <label>Hysteria2 Password</label>
+          <input type="text" id="cfg-h2-password" placeholder="testpass1" />
+        </div>
+
+        <div class="form-group">
+          <label>Hysteria2 SNI</label>
+          <input type="text" id="cfg-h2-sni" placeholder="ns.baft.uk" />
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="cfg-h2-insecure" /> Insecure (skip cert verify)
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label>Hysteria2 Obfs (salamander/none)</label>
+          <input type="text" id="cfg-h2-obfs" placeholder="salamander" />
+        </div>
+
+        <div class="form-group">
+          <label>Hysteria2 Obfs Password</label>
+          <input type="text" id="cfg-h2-obfs-password" placeholder="testobfspass" />
+        </div>
+
+        <div class="form-group">
+          <label>Hysteria2 Multiport Range</label>
+          <input type="text" id="cfg-h2-mport" placeholder="40001-45000" />
+        </div>
+
         <div class="form-group">
           <label>Domain Rules (one per line)</label>
           <textarea id="cfg-split-domains" rows="4" placeholder="google.com&#10;github.com"></textarea>

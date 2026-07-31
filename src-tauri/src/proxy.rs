@@ -186,6 +186,35 @@ struct SbTls {
     insecure: bool,
 }
 
+#[derive(Serialize)]
+struct SbHysteria2 {
+    #[serde(rename = "type")]
+    typ: String,
+    tag: String,
+    server: String,
+    server_port: u16,
+    password: String,
+    tls: SbHysteria2Tls,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    obfs: Option<SbHysteria2Obfs>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mport: Option<String>,
+}
+
+#[derive(Serialize)]
+struct SbHysteria2Tls {
+    enabled: bool,
+    server_name: String,
+    insecure: bool,
+}
+
+#[derive(Serialize)]
+struct SbHysteria2Obfs {
+    #[serde(rename = "type")]
+    typ: String,
+    password: String,
+}
+
 pub struct ProxyManager {
     child: Arc<Mutex<Option<Child>>>,
     config_dir: PathBuf,
@@ -432,10 +461,13 @@ impl ProxyManager {
 
         let mut outbounds = self.common_outbounds();
         for ob in &mut outbounds {
-            if ob.tag == "ss-out" || ob.tag == "shadowtls-out" {
+            if ob.tag == "ss-out" || ob.tag == "shadowtls-out" || ob.tag == "h2-out" {
                 ob.server = Some(stls_ip.clone());
             }
         }
+
+        // Determine final outbound based on Hysteria2 enabled
+        let final_outbound = if c.h2_enabled { "h2-out" } else { "ss-out" };
 
         let mut cfg = SbConfig {
             log: SbLog {
@@ -457,14 +489,14 @@ impl ProxyManager {
                         tag: "remote-doh".into(),
                         server: Some("1.1.1.1".into()),
                         server_port: None,
-                        detour: Some("ss-out".into()),
+                        detour: Some(final_outbound.into()),
                     },
                     SbDnsServer {
                         typ: "https".into(),
                         tag: "google-doh".into(),
                         server: Some("8.8.8.8".into()),
                         server_port: None,
-                        detour: Some("ss-out".into()),
+                        detour: Some(final_outbound.into()),
                     },
                 ],
                 rules: None,
@@ -520,7 +552,7 @@ impl ProxyManager {
                         outbound: Some("direct".into()),
                     },
                 ]),
-                final_outbound: Some("ss-out".into()),
+                final_outbound: Some(final_outbound.into()),
                 auto_detect_interface: Some(true),
                 default_domain_resolver: Some("remote-doh".into()),
                 find_process: Some(true),
@@ -579,11 +611,11 @@ impl ProxyManager {
         Ok(cfg)
     }
 
-    // ── shared outbounds (SS + STLS + direct) ─────────────────────
+    // ── shared outbounds (SS + STLS + Hysteria2 + direct) ─────────────────────
 
     fn common_outbounds(&self) -> Vec<SbOutbound> {
         let c = &self.config;
-        vec![
+        let mut outbounds = vec![
             SbOutbound {
                 typ: "shadowsocks".into(),
                 tag: "ss-out".into(),
@@ -627,7 +659,42 @@ impl ProxyManager {
                 // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
                 udp_over_tcp: None,
             },
-        ]
+        ];
+
+        // Add Hysteria2 outbound if enabled
+        if c.h2_enabled {
+            outbounds.push(SbOutbound {
+                typ: "hysteria2".into(),
+                tag: "h2-out".into(),
+                server: Some(c.server_address.clone()),
+                server_port: Some(c.h2_port),
+                password: Some(c.h2_password.clone()),
+                tls: Some(SbHysteria2Tls {
+                    enabled: true,
+                    server_name: c.h2_sni.clone(),
+                    insecure: c.h2_insecure,
+                }),
+                obfs: if c.h2_obfs.is_empty() {
+                    None
+                } else {
+                    Some(SbHysteria2Obfs {
+                        typ: c.h2_obfs.clone(),
+                        password: c.h2_obfs_password.clone(),
+                    })
+                },
+                mport: if c.h2_mport.is_empty() {
+                    None
+                } else {
+                    Some(c.h2_mport.clone())
+                },
+                version: None,
+                method: None,
+                detour: None,
+                udp_over_tcp: None,
+            });
+        }
+
+        outbounds
     }
 
     // ── sing-box binary management ─────────────────────────────────
