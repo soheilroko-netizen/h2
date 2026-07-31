@@ -302,7 +302,7 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
             let down_delta = cur_down.saturating_sub(prev_total.1);
             *prev_total = (cur_up, cur_down);
             *prev_time = Some(now);
-            ((up_delta / elapsed) as u64, (down_delta / elapsed) as u64)
+            ((up_delta as f64 / elapsed) as u64, (down_delta as f64 / elapsed) as u64)
         } else {
             // Too soon, return previous rate (0 on first call)
             (0, 0)
