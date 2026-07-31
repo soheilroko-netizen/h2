@@ -34,6 +34,19 @@ fn check_single_instance() {}
 use std::sync::Mutex;
 use std::time::Instant;
 
+// HTTP client with connection pooling for sing-box API
+static SING_BOX_CLIENT: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
+
+fn sing_box_client() -> &'static reqwest::blocking::Client {
+    SING_BOX_CLIENT.get_or_init(|| {
+        reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(3))
+            .pool_max_idle_per_host(2)
+            .build()
+            .expect("reqwest client")
+    })
+}
+
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -173,129 +186,59 @@ fn delete_profile(name: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn switch_profile(name: String) -> Result<String, String> {
-    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.switch_profile(&name).map_err(|e| e.to_string())?;
-    Ok(format!("Switched to '{}'", name))
-}
-
-#[tauri::command]
-fn switch_profile_stop(name: String, state: State<AppState>) -> Result<String, String> {
-    let mut proxy = state.proxy.lock().unwrap();
-    if proxy.is_running() {
-        proxy.stop().map_err(|e| e.to_string())?;
-        *state.started_at.lock().unwrap() = None;
-    }
-    drop(proxy);
-
-    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
-    store.switch_profile(&name).map_err(|e| e.to_string())?;
-    Ok(format!("Switched to '{}'", name))
-}
-
-#[tauri::command]
 fn get_traffic() -> Result<String, String> {
-    use std::io::{Read, Write};
-    use std::net::TcpStream;
-    use std::time::Duration;
+    let client = sing_box_client();
+    let resp = client
+        .get("http://127.0.0.1:9097/traffic")
+        .header("Authorization", "Bearer dakal")
+        .send()
+        .map_err(|e| format!("request: {e}"))?;
 
-    let mut stream = TcpStream::connect_timeout(
-        &"127.0.0.1:9097".parse().map_err(|e| format!("addr: {}", e))?,
-        Duration::from_secs(2),
-    )
-    .map_err(|e| format!("connect: {}", e))?;
-
-    stream
-        .set_read_timeout(Some(Duration::from_millis(800)))
-        .map_err(|e| format!("set_read_timeout: {}", e))?;
-
-    let req = "GET /traffic HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nAuthorization: Bearer dakal\r\nConnection: close\r\n\r\n";
-    stream
-        .write_all(req.as_bytes())
-        .map_err(|e| format!("write: {e}"))?;
-
-    let deadline = Instant::now() + Duration::from_millis(1500);
-    let mut all_data = String::new();
-    let mut buf = [0u8; 2048];
-
-    while Instant::now() < deadline {
-        match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => {
-                all_data.push_str(&String::from_utf8_lossy(&buf[..n]));
-            }
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock
-                || e.kind() == std::io::ErrorKind::TimedOut =>
-            {
-                continue;
-            }
-            Err(e) => return Err(format!("read: {}", e)),
-        }
+    if !resp.status().is_success() {
+        return Ok(r#"{"up":0,"down":0}"#.into());
     }
 
-    let mut last_json: Option<(u64, u64)> = None;
-    for line in all_data.lines() {
-        let line = line.trim();
-        if line.starts_with('{') && line.contains("\"up\"") {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
-                let up = v["up"].as_u64().unwrap_or(0);
-                let down = v["down"].as_u64().unwrap_or(0);
-                last_json = Some((up, down));
-            }
-        }
-    }
-
-    let (up, down) = last_json.unwrap_or((0, 0));
+    let v: serde_json::Value = resp.json().map_err(|e| format!("json: {e}"))?;
+    let up = v["up"].as_u64().unwrap_or(0);
+    let down = v["down"].as_u64().unwrap_or(0);
     Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down))
 }
 
 #[tauri::command]
 fn get_total_traffic() -> Result<String, String> {
-    use std::io::{Read, Write};
-    use std::net::TcpStream;
-    use std::time::{Duration, Instant};
+    let client = sing_box_client();
+    let resp = client
+        .get("http://127.0.0.1:9097/connections")
+        .header("Authorization", "Bearer dakal")
+        .send()
+        .map_err(|e| format!("request: {e}"))?;
 
-    let mut stream = match TcpStream::connect_timeout(
-        &"127.0.0.1:9097".parse().map_err(|e| format!("addr: {e}"))?,
-        Duration::from_secs(2),
-    ) {
-        Ok(s) => s,
-        Err(_) => return Ok(r#"{"up":0,"down":0}"#.into()),
-    };
-
-    stream
-        .set_read_timeout(Some(Duration::from_millis(800)))
-        .ok();
-
-    let req = "GET /connections HTTP/1.1\r\nHost: 127.0.0.1:9097\r\nAuthorization: Bearer dakal\r\nConnection: close\r\n\r\n";
-    let _ = stream.write_all(req.as_bytes());
-
-    // Read response in chunks for up to 1.5s
-    let deadline = Instant::now() + Duration::from_millis(1500);
-    let mut response = String::new();
-    let mut buf = [0u8; 2048];
-
-    while Instant::now() < deadline {
-        match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => response.push_str(&String::from_utf8_lossy(&buf[..n])),
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock
-                || e.kind() == std::io::ErrorKind::TimedOut => continue,
-            Err(_) => break,
-        }
+    if !resp.status().is_success() {
+        return Ok(r#"{"up":0,"down":0}"#.into());
     }
 
-    // Parse HTTP response body after \r\n\r\n
-    if let Some(body) = response.split("\r\n\r\n").nth(1) {
-        if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
-            let up = v["upload_total"].as_u64().unwrap_or(0);
-            let down = v["download_total"].as_u64().unwrap_or(0);
-            return Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down));
+    let v: serde_json::Value = resp.json().map_err(|e| format!("json: {e}"))?;
+
+    // sing-box /connections returns:
+    //   { "download_total": N, "upload_total": N, "connections": [...] }
+    // Older builds / forks only return the array -- sum per-conn bytes.
+    let up = v["upload_total"].as_u64().unwrap_or(0);
+    let down = v["download_total"].as_u64().unwrap_or(0);
+    if up == 0 && down == 0 {
+        let arr_opt = v["connections"].as_array().or_else(|| v.as_array());
+        if let Some(arr) = arr_opt {
+            let mut sum_up: u64 = 0;
+            let mut sum_down: u64 = 0;
+            for c in arr {
+                sum_up = sum_up.saturating_add(c["upload"].as_u64().unwrap_or(0));
+                sum_down = sum_down.saturating_add(c["download"].as_u64().unwrap_or(0));
+            }
+            return Ok(format!(r#"{{"up":{},"down":{}}}"#, sum_up, sum_down));
         }
     }
-
-    Ok(r#"{"up":0,"down":0}"#.into())
+    Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down))
 }
+
 #[tauri::command]
 fn get_uptime(state: State<AppState>) -> Result<u64, String> {
     let guard = state.started_at.lock().unwrap();
@@ -303,6 +246,88 @@ fn get_uptime(state: State<AppState>) -> Result<u64, String> {
         Some(start) => Ok(start.elapsed().as_secs()),
         None => Ok(0),
     }
+}
+
+// Batched status for frontend polling - single invoke returns all metrics
+#[tauri::command]
+fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
+    let proxy = state.proxy.lock().unwrap();
+    let running = proxy.is_running();
+    drop(proxy);
+
+    if !running {
+        return Ok(FullStatus {
+            running: false,
+            uptime: 0,
+            traffic_up: 0,
+            traffic_down: 0,
+            total_up: 0,
+            total_down: 0,
+        });
+    }
+
+    let started_at = state.started_at.lock().unwrap();
+    let uptime = started_at.map(|s| s.elapsed().as_secs()).unwrap_or(0);
+    drop(started_at);
+
+    // Get current traffic via sing-box API
+    let client = sing_box_client();
+    let traffic = client
+        .get("http://127.0.0.1:9097/traffic")
+        .header("Authorization", "Bearer dakal")
+        .send()
+        .ok()
+        .and_then(|r| r.json::<serde_json::Value>().ok())
+        .map(|v| (v["up"].as_u64().unwrap_or(0), v["down"].as_u64().unwrap_or(0)))
+        .unwrap_or((0, 0));
+
+    // Get total traffic
+    let total = client
+        .get("http://127.0.0.1:9097/connections")
+        .header("Authorization", "Bearer dakal")
+        .send()
+        .ok()
+        .and_then(|r| r.json::<serde_json::Value>().ok())
+        .map(|v| {
+            let up = v["upload_total"].as_u64().unwrap_or(0);
+            let down = v["download_total"].as_u64().unwrap_or(0);
+            if up == 0 && down == 0 {
+                let arr_opt = v["connections"].as_array().or_else(|| v.as_array());
+                if let Some(arr) = arr_opt {
+                    let mut sum_up = 0;
+                    let mut sum_down = 0;
+                    for c in arr {
+                        sum_up = sum_up.saturating_add(c["upload"].as_u64().unwrap_or(0));
+                        sum_down = sum_down.saturating_add(c["download"].as_u64().unwrap_or(0));
+                    }
+                    (sum_up, sum_down)
+                } else {
+                    (0, 0)
+                }
+            } else {
+                (up, down)
+            }
+        })
+        .unwrap_or((0, 0));
+
+    Ok(FullStatus {
+        running: true,
+        uptime,
+        traffic_up: traffic.0,
+        traffic_down: traffic.1,
+        total_up: total.0,
+        total_down: total.1,
+    })
+}
+
+#[derive(serde::Serialize)]
+struct FullStatus {
+    running: bool,
+    uptime: u64,
+    traffic_up: u64,
+    traffic_down: u64,
+    total_up: u64,
+    total_down: u64,
 }
 
 #[tauri::command]
@@ -342,6 +367,43 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
 
     let ms = (elapsed.as_micros() as f64 / 1000.0) as u64;
     Ok(format!("{}ms", ms))
+}
+
+#[tauri::command]
+fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("settings") {
+        win.show().ok();
+        win.set_focus().ok();
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings.html".into()))
+        .title("dakal-tls — Settings")
+        .inner_size(580.0, 520.0)
+        .resizable(true)
+        .build()
+        .map_err(|e| format!("settings window: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn switch_profile(name: String) -> Result<String, String> {
+    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
+    store.switch_profile(&name).map_err(|e| e.to_string())?;
+    Ok(format!("Switched to '{}'", name))
+}
+
+#[tauri::command]
+fn switch_profile_stop(name: String, state: State<AppState>) -> Result<String, String> {
+    let mut proxy = state.proxy.lock().unwrap();
+    if proxy.is_running() {
+        proxy.stop().map_err(|e| e.to_string())?;
+        *state.started_at.lock().unwrap() = None;
+    }
+    drop(proxy);
+
+    let mut store = ProfileStore::load().map_err(|e| e.to_string())?;
+    store.switch_profile(&name).map_err(|e| e.to_string())?;
+    Ok(format!("Switched to '{}'", name))
 }
 
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -501,7 +563,9 @@ fn main() {
             get_traffic,
             get_total_traffic,
             get_uptime,
+            get_full_status,
             get_log,
+            open_settings_window,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");
