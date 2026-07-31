@@ -172,6 +172,10 @@ struct SbOutbound {
     detour: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     udp_over_tcp: Option<SbUdpOverTcp>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    obfs: Option<SbObfs>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mport: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -187,29 +191,7 @@ struct SbTls {
 }
 
 #[derive(Serialize)]
-struct SbHysteria2 {
-    #[serde(rename = "type")]
-    typ: String,
-    tag: String,
-    server: String,
-    server_port: u16,
-    password: String,
-    tls: SbHysteria2Tls,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    obfs: Option<SbHysteria2Obfs>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mport: Option<String>,
-}
-
-#[derive(Serialize)]
-struct SbHysteria2Tls {
-    enabled: bool,
-    server_name: String,
-    insecure: bool,
-}
-
-#[derive(Serialize)]
-struct SbHysteria2Obfs {
+struct SbObfs {
     #[serde(rename = "type")]
     typ: String,
     password: String,
@@ -628,6 +610,8 @@ impl ProxyManager {
                 detour: Some("shadowtls-out".into()),
                 // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
                 udp_over_tcp: Some(SbUdpOverTcp { enabled: true }),
+                obfs: None,
+                mport: None,
             },
             SbOutbound {
                 typ: "shadowtls".into(),
@@ -645,6 +629,8 @@ impl ProxyManager {
                 // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
                 udp_over_tcp: None,
                 method: None,
+                obfs: None,
+                mport: None,
             },
             SbOutbound {
                 typ: "direct".into(),
@@ -658,6 +644,8 @@ impl ProxyManager {
                 detour: None,
                 // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
                 udp_over_tcp: None,
+                obfs: None,
+                mport: None,
             },
         ];
 
@@ -669,7 +657,7 @@ impl ProxyManager {
                 server: Some(c.server_address.clone()),
                 server_port: Some(c.h2_port),
                 password: Some(c.h2_password.clone()),
-                tls: Some(SbHysteria2Tls {
+                tls: Some(SbTls {
                     enabled: true,
                     server_name: c.h2_sni.clone(),
                     insecure: c.h2_insecure,
@@ -677,16 +665,12 @@ impl ProxyManager {
                 obfs: if c.h2_obfs.is_empty() {
                     None
                 } else {
-                    Some(SbHysteria2Obfs {
+                    Some(SbObfs {
                         typ: c.h2_obfs.clone(),
                         password: c.h2_obfs_password.clone(),
                     })
                 },
-                mport: if c.h2_mport.is_empty() {
-                    None
-                } else {
-                    Some(c.h2_mport.clone())
-                },
+                mport: if c.h2_mport.is_empty() { None } else { Some(c.h2_mport.clone()) },
                 version: None,
                 method: None,
                 detour: None,
