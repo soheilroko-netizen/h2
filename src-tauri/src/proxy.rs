@@ -174,8 +174,6 @@ struct SbOutbound {
     udp_over_tcp: Option<SbUdpOverTcp>,
     #[serde(skip_serializing_if = "Option::is_none")]
     obfs: Option<SbObfs>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mport: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -611,7 +609,7 @@ impl ProxyManager {
                 // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
                 udp_over_tcp: Some(SbUdpOverTcp { enabled: true }),
                 obfs: None,
-                mport: None,
+
             },
             SbOutbound {
                 typ: "shadowtls".into(),
@@ -630,7 +628,7 @@ impl ProxyManager {
                 udp_over_tcp: None,
                 method: None,
                 obfs: None,
-                mport: None,
+
             },
             SbOutbound {
                 typ: "direct".into(),
@@ -645,7 +643,7 @@ impl ProxyManager {
                 // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
                 udp_over_tcp: None,
                 obfs: None,
-                mport: None,
+
             },
         ];
 
@@ -670,7 +668,7 @@ impl ProxyManager {
                         password: c.h2_obfs_password.clone(),
                     })
                 },
-                mport: if c.h2_mport.is_empty() { None } else { Some(c.h2_mport.clone()) },
+
                 version: None,
                 method: None,
                 detour: None,
