@@ -61,6 +61,8 @@ struct AppState {
     started_at: Mutex<Option<Instant>>,
     prev_total: Mutex<(u64, u64)>,
     prev_time: Mutex<Option<Instant>>,
+    http_client: reqwest::blocking::Client,
+    cached_log: Mutex<(std::time::SystemTime, Vec<String>)>,
 }
 
 // ── Tray menu rebuild helper ───────────────────────────────────
@@ -205,14 +207,26 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     let cfg = config::get_active_config();
     let uptime_secs = state.started_at.lock().unwrap().map(|s| s.elapsed().as_secs()).unwrap_or(0);
 
-    // Read last 100 log lines
-    let log_lines: Vec<String> = std::fs::read_to_string(&log_path)
-        .map(|f| {
-            let mut lines: Vec<String> = f.lines().rev().take(100).map(String::from).collect();
-            lines.reverse();
-            lines
-        })
-        .unwrap_or_default();
+    // Read last 100 log lines (cache: only re-read if file changed)
+    let log_lines = {
+        let modified = std::fs::metadata(&log_path)
+            .and_then(|m| m.modified())
+            .ok();
+        let mut cache = state.cached_log.lock().unwrap();
+        let needs_refresh = match modified {
+            Some(m) => cache.is_empty() || m > cache.0,
+            None => false,
+        };
+        if needs_refresh {
+            if let Ok(content) = std::fs::read_to_string(&log_path) {
+                let mut lines: Vec<String> = content.lines().rev().take(100).map(String::from).collect();
+                lines.reverse();
+                cache.0 = std::time::SystemTime::now();
+                cache.1 = lines;
+            }
+        }
+        cache.1.clone()
+    };
 
     // Get traffic from clash API
     let client = sing_box_client();
@@ -294,25 +308,18 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
         return Err("VPN not connected".into());
     }
 
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
-        .build()
-        .map_err(|e| format!("http client: {}", e))?;
-
     let target = "http://www.gstatic.com/generate_204";
-
-    if let Err(e) = client.get(target).send() {
+    if let Err(e) = state.http_client.get(target).send() {
         return Err(format!("warmup failed: {}", e));
     }
 
     let start = Instant::now();
-    let resp = client.get(target).send().map_err(|e| format!("measure failed: {}", e))?;
+    let resp = state.http_client.get(target).send().map_err(|e| format!("measure failed: {}", e))?;
     if !resp.status().is_success() && resp.status().as_u16() != 204 {
         return Err(format!("bad status: {}", resp.status()));
     }
-    let elapsed = start.elapsed();
 
-    let ms = (elapsed.as_micros() as f64 / 1000.0) as u64;
+    let ms = (start.elapsed().as_micros() as f64 / 1000.0) as u64;
     Ok(format!("{}ms", ms))
 }
 
@@ -392,6 +399,11 @@ fn main() {
             started_at: Mutex::new(None),
             prev_total: Mutex::new((0, 0)),
             prev_time: Mutex::new(None),
+            http_client: reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_secs(3))
+                .build()
+                .unwrap(),
+            cached_log: Mutex::new((std::time::SystemTime::UNIX_EPOCH, Vec::new())),
         })
         .setup(|app| {
             let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;

@@ -350,4 +350,4 @@ document.getElementById('mode-h2')?.addEventListener('click', async () => {
   await updateStatus();
 })();
 
-setInterval(updateStatus, 1000);
+setInterval(updateStatus, 2000);
