@@ -140,7 +140,6 @@ fn stop_proxy_inner(state: &State<AppState>) -> Result<String, String> {
     *state.started_at.lock().unwrap() = None;
     *state.prev_total.lock().unwrap() = (0, 0);
     *state.prev_time.lock().unwrap() = None;
-    state.connected.store(false, Ordering::Relaxed);
     Ok(result)
 }
 
@@ -403,19 +402,13 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
 #[tauri::command]
 fn auto_tune_speedtest(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     // Stop VPN first so speed test runs on raw connection
-    let was_connected = state.connected.load(Ordering::Relaxed);
-    if was_connected {
-        // Stop proxy silently
+    let was_running = state.proxy.lock().unwrap().is_running();
+    if was_running {
         let _ = stop_proxy_inner(&state);
     }
 
     let (up_mbps, down_mbps) = proxy::run_speedtest().map_err(|e| e.to_string())?;
     config::save_h2_speeds(up_mbps, down_mbps).map_err(|e| e.to_string())?;
-
-    // Restart VPN if it was connected before
-    if was_connected {
-        // Note: can't easily restart without AppHandle here, user will reconnect manually
-    }
 
     Ok(serde_json::json!({
         "up_mbps": up_mbps,
