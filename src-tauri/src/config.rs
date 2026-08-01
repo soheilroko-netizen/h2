@@ -28,6 +28,12 @@ pub struct Config {
     pub h2_obfs: String,
     pub h2_obfs_password: String,
     pub h2_mport: String,
+    #[serde(default = "h2_mbps_up_default")]
+    pub h2_up_mbps: u32,
+    #[serde(default = "h2_mbps_down_default")]
+    pub h2_down_mbps: u32,
+    #[serde(default = "h2_auto_default")]
+    pub h2_auto: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -96,6 +102,9 @@ pub fn stls_defaults() -> Config {
         h2_obfs: "salamander".to_string(),
         h2_obfs_password: "testobfspass".to_string(),
         h2_mport: "40001-45000".to_string(),
+        h2_up_mbps: h2_mbps_up_default(),
+        h2_down_mbps: h2_mbps_down_default(),
+        h2_auto: h2_auto_default(),
     }
 }
 
@@ -121,8 +130,20 @@ pub fn h2_defaults() -> Config {
         h2_obfs: "salamander".to_string(),
         h2_obfs_password: "testobfspass".to_string(),
         h2_mport: "40001-45000".to_string(),
+        h2_up_mbps: h2_mbps_up_default(),
+        h2_down_mbps: h2_mbps_down_default(),
+        h2_auto: h2_auto_default(),
     }
 }
+
+/// Default Hysteria2 upload bandwidth in MBps
+pub fn h2_mbps_up_default() -> u32 { 8 }
+
+/// Default Hysteria2 download bandwidth in MBps
+pub fn h2_mbps_down_default() -> u32 { 24 }
+
+/// Auto-tune flag default
+pub fn h2_auto_default() -> bool { false }
 
 /// Get the config for the active mode
 pub fn get_active_config() -> Config {
