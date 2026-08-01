@@ -612,6 +612,7 @@ impl ProxyManager {
                 typ: "hysteria2".into(),
                 tag: "h2-out".into(),
                 server: Some(c.server_address.clone()),
+                server_port: None,
                 server_ports: Some(vec![format!("{}:{}", c.h2_port, c.h2_port + 5000)]), // 40001:45000 range
                 hop_interval: Some("30s".into()),
                 up_mbps: Some(15),
@@ -636,7 +637,6 @@ impl ProxyManager {
                 udp_over_tcp: None,
             });
         } else {
-            // ShadowTLS mode: ss-out + shadowtls-out + direct
             outbounds.push(SbOutbound {
                 typ: "shadowsocks".into(),
                 tag: "ss-out".into(),
@@ -649,6 +649,10 @@ impl ProxyManager {
                 detour: Some("shadowtls-out".into()),
                 udp_over_tcp: Some(SbUdpOverTcp { enabled: true }),
                 obfs: None,
+                server_ports: None,
+                hop_interval: None,
+                up_mbps: None,
+                down_mbps: None,
             });
             outbounds.push(SbOutbound {
                 typ: "shadowtls".into(),
@@ -666,6 +670,10 @@ impl ProxyManager {
                 udp_over_tcp: None,
                 method: None,
                 obfs: None,
+                server_ports: None,
+                hop_interval: None,
+                up_mbps: None,
+                down_mbps: None,
             });
         }
 
@@ -682,6 +690,10 @@ impl ProxyManager {
             detour: None,
             udp_over_tcp: None,
             obfs: None,
+            server_ports: None,
+            hop_interval: None,
+            up_mbps: None,
+            down_mbps: None,
         });
 
         outbounds
