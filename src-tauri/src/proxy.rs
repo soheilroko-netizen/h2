@@ -595,60 +595,10 @@ impl ProxyManager {
 
     fn common_outbounds(&self) -> Vec<SbOutbound> {
         let c = &self.config;
-        let mut outbounds = vec![
-            SbOutbound {
-                typ: "shadowsocks".into(),
-                tag: "ss-out".into(),
-                server: Some(c.server_address.clone()),
-                server_port: Some(c.ss_port),
-                method: Some("2022-blake3-chacha20-poly1305".into()),
-                password: Some(c.ss_password.clone()),
-                version: None,
-                tls: None,
-                detour: Some("shadowtls-out".into()),
-                // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
-                udp_over_tcp: Some(SbUdpOverTcp { enabled: true }),
-                obfs: None,
+        let mut outbounds: Vec<SbOutbound> = Vec::new();
 
-            },
-            SbOutbound {
-                typ: "shadowtls".into(),
-                tag: "shadowtls-out".into(),
-                server: Some(c.server_address.clone()),
-                server_port: Some(c.stls_port),
-                version: Some(3),
-                password: Some(c.stls_password.clone()),
-                tls: Some(SbTls {
-                    enabled: true,
-                    server_name: c.stls_sni.clone(),
-                    insecure: false,
-                }),
-                detour: None,
-                // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
-                udp_over_tcp: None,
-                method: None,
-                obfs: None,
-
-            },
-            SbOutbound {
-                typ: "direct".into(),
-                tag: "direct".into(),
-                server: None,
-                server_port: None,
-                method: None,
-                password: None,
-                version: None,
-                tls: None,
-                detour: None,
-                // No udp field — sing-box 1.13.x rejects unknown fields on outbounds
-                udp_over_tcp: None,
-                obfs: None,
-
-            },
-        ];
-
-        // Add Hysteria2 outbound if mode is hysteria2
         if self.config.mode == "hysteria2" {
+            // Hysteria2 mode: only h2-out + direct
             outbounds.push(SbOutbound {
                 typ: "hysteria2".into(),
                 tag: "h2-out".into(),
@@ -668,13 +618,59 @@ impl ProxyManager {
                         password: c.h2_obfs_password.clone(),
                     })
                 },
-
                 version: None,
                 method: None,
                 detour: None,
                 udp_over_tcp: None,
             });
+        } else {
+            // ShadowTLS mode: ss-out + shadowtls-out + direct
+            outbounds.push(SbOutbound {
+                typ: "shadowsocks".into(),
+                tag: "ss-out".into(),
+                server: Some(c.server_address.clone()),
+                server_port: Some(c.ss_port),
+                method: Some("2022-blake3-chacha20-poly1305".into()),
+                password: Some(c.ss_password.clone()),
+                version: None,
+                tls: None,
+                detour: Some("shadowtls-out".into()),
+                udp_over_tcp: Some(SbUdpOverTcp { enabled: true }),
+                obfs: None,
+            });
+            outbounds.push(SbOutbound {
+                typ: "shadowtls".into(),
+                tag: "shadowtls-out".into(),
+                server: Some(c.server_address.clone()),
+                server_port: Some(c.stls_port),
+                version: Some(3),
+                password: Some(c.stls_password.clone()),
+                tls: Some(SbTls {
+                    enabled: true,
+                    server_name: c.stls_sni.clone(),
+                    insecure: false,
+                }),
+                detour: None,
+                udp_over_tcp: None,
+                method: None,
+                obfs: None,
+            });
         }
+
+        // Always add direct outbound
+        outbounds.push(SbOutbound {
+            typ: "direct".into(),
+            tag: "direct".into(),
+            server: None,
+            server_port: None,
+            method: None,
+            password: None,
+            version: None,
+            tls: None,
+            detour: None,
+            udp_over_tcp: None,
+            obfs: None,
+        });
 
         outbounds
     }
