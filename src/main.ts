@@ -34,6 +34,9 @@ interface Config {
   h2_obfs: string;
   h2_obfs_password: string;
   h2_mport: string;
+  h2_up_mbps: number;
+  h2_down_mbps: number;
+  h2_auto: boolean;
 }
 
 // ── Elements ─────────────────────────────────────────────────
@@ -189,6 +192,9 @@ async function loadSettingsForm() {
     (document.getElementById('cfg-h2-obfs') as HTMLInputElement).value = config.h2_obfs;
     (document.getElementById('cfg-h2-obfs-password') as HTMLInputElement).value = config.h2_obfs_password;
     (document.getElementById('cfg-h2-mport') as HTMLInputElement).value = config.h2_mport;
+    (document.getElementById('cfg-h2-up-mbps') as HTMLInputElement).value = String(config.h2_up_mbps);
+    (document.getElementById('cfg-h2-down-mbps') as HTMLInputElement).value = String(config.h2_down_mbps);
+    (document.getElementById('cfg-h2-auto') as HTMLInputElement).checked = config.h2_auto;
     const rules = (config.split_rules || []).map(r => r.pattern).join('\n');
     (document.getElementById('cfg-split-domains') as HTMLTextAreaElement).value = rules;
   } catch (e) {
