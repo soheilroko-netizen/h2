@@ -207,7 +207,11 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
 
     // Read last 100 log lines
     let log_lines: Vec<String> = std::fs::read_to_string(&log_path)
-        .map(|f| f.lines().rev().take(100).map(String::from).rev().collect())
+        .map(|f| {
+            let mut lines: Vec<String> = f.lines().rev().take(100).map(String::from).collect();
+            lines.reverse();
+            lines
+        })
         .unwrap_or_default();
 
     // Get traffic from clash API
