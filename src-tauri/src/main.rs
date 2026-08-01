@@ -214,7 +214,7 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
             .ok();
         let mut cache = state.cached_log.lock().unwrap();
         let needs_refresh = match modified {
-            Some(m) => cache.is_empty() || m > cache.0,
+            Some(m) => cache.1.is_empty() || m > cache.0,
             None => false,
         };
         if needs_refresh {
