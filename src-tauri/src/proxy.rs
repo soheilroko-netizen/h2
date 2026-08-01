@@ -174,6 +174,15 @@ struct SbOutbound {
     udp_over_tcp: Option<SbUdpOverTcp>,
     #[serde(skip_serializing_if = "Option::is_none")]
     obfs: Option<SbObfs>,
+    // Hysteria2-specific fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    server_ports: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hop_interval: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    up_mbps: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    down_mbps: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -603,8 +612,11 @@ impl ProxyManager {
                 typ: "hysteria2".into(),
                 tag: "h2-out".into(),
                 server: Some(c.server_address.clone()),
-                server_port: Some(c.h2_port),
-                password: Some(c.h2_password.clone()),
+                server_ports: Some(vec![format!("{}:{}", c.h2_port, c.h2_port + 5000)]), // 40001:45000 range
+                hop_interval: Some("30s".into()),
+                up_mbps: Some(15),
+                down_mbps: Some(80),
+                password: Some(format!("{}:{}", "testuser1", c.h2_password)),
                 tls: Some(SbTls {
                     enabled: true,
                     server_name: c.h2_sni.clone(),
