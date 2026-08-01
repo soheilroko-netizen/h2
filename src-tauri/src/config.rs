@@ -81,6 +81,35 @@ pub fn save_mode(mode: &str) -> Result<()> {
     Ok(())
 }
 
+/// Save Hysteria2 speed test results to config.json
+pub fn save_h2_speeds(up_mbps: u32, down_mbps: u32) -> Result<()> {
+    let path = config_path()?;
+    let mut existing = if path.exists() {
+        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&path)?)
+            .unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+    existing["h2_up_mbps"] = serde_json::json!(up_mbps);
+    existing["h2_down_mbps"] = serde_json::json!(down_mbps);
+    fs::write(&path, serde_json::to_string_pretty(&existing)?)?;
+    Ok(())
+}
+
+/// Load Hysteria2 speed test results from config.json
+pub fn load_h2_speeds() -> (u32, u32) {
+    match config_path() {
+        Ok(path) if path.exists() => {
+            let content = fs::read_to_string(&path).unwrap_or_default();
+            let v: serde_json::Value = serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
+            let up = v["h2_up_mbps"].as_u64().unwrap_or(h2_mbps_up_default() as u64) as u32;
+            let down = v["h2_down_mbps"].as_u64().unwrap_or(h2_mbps_down_default() as u64) as u32;
+            (up, down)
+        }
+        _ => (h2_mbps_up_default(), h2_mbps_down_default()),
+    }
+}
+
 /// Return the baked-in ShadowTLS default config
 pub fn stls_defaults() -> Config {
     Config {

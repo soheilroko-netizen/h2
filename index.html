@@ -23,6 +23,15 @@
           <button id="btn-main-log" class="btn-small">Log</button>
         </div>
 
+        <div id="h2-speed-display" style="display:none;margin:6px 0;padding:6px 8px;background:#1a1a2e;border-radius:6px;border:1px solid #333;font-size:11px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="color:#888">H2 Speed:</span>
+            <span>↑ <span id="h2-up-display">8</span> MBps</span>
+            <span>↓ <span id="h2-down-display">24</span> MBps</span>
+            <button id="btn-main-speedtest" class="btn-small" style="margin-left:auto;font-size:10px">Speed Test</button>
+          </div>
+        </div>
+
         <div class="status-card">
           <div class="status-indicator" id="status-dot"></div>
           <span id="status-text">Disconnected</span>

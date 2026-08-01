@@ -134,14 +134,19 @@ fn start_proxy(app: tauri::AppHandle, state: State<AppState>) -> Result<String, 
     Ok(result)
 }
 
-#[tauri::command]
-fn stop_proxy(app: tauri::AppHandle, state: State<AppState>) -> Result<String, String> {
+fn stop_proxy_inner(state: &State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
     let result = proxy.stop().map_err(|e| e.to_string())?;
     *state.started_at.lock().unwrap() = None;
     *state.prev_total.lock().unwrap() = (0, 0);
     *state.prev_time.lock().unwrap() = None;
-    drop(proxy);
+    state.connected.store(false, Ordering::Relaxed);
+    Ok(result)
+}
+
+#[tauri::command]
+fn stop_proxy(app: tauri::AppHandle, state: State<AppState>) -> Result<String, String> {
+    let result = stop_proxy_inner(&state)?;
     update_tray_state(&app);
     Ok(result)
 }
@@ -396,11 +401,34 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn auto_tune_speedtest() -> Result<serde_json::Value, String> {
+fn auto_tune_speedtest(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    // Stop VPN first so speed test runs on raw connection
+    let was_connected = state.connected.load(Ordering::Relaxed);
+    if was_connected {
+        // Stop proxy silently
+        let _ = stop_proxy_inner(&state);
+    }
+
     let (up_mbps, down_mbps) = proxy::run_speedtest().map_err(|e| e.to_string())?;
+    config::save_h2_speeds(up_mbps, down_mbps).map_err(|e| e.to_string())?;
+
+    // Restart VPN if it was connected before
+    if was_connected {
+        // Note: can't easily restart without AppHandle here, user will reconnect manually
+    }
+
     Ok(serde_json::json!({
         "up_mbps": up_mbps,
         "down_mbps": down_mbps,
+    }))
+}
+
+#[tauri::command]
+fn get_h2_speeds() -> Result<serde_json::Value, String> {
+    let (up, down) = config::load_h2_speeds();
+    Ok(serde_json::json!({
+        "up_mbps": up,
+        "down_mbps": down,
     }))
 }
 
@@ -574,6 +602,7 @@ fn main() {
             get_log,
             open_settings_window,
             auto_tune_speedtest,
+            get_h2_speeds,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");

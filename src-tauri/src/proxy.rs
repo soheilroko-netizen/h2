@@ -544,7 +544,7 @@ impl ProxyManager {
                 final_outbound: Some(final_outbound.into()),
                 auto_detect_interface: Some(true),
                 default_domain_resolver: Some("remote-doh".into()),
-                find_process: Some(true),
+                find_process: Some(false),
             }),
         };
 
@@ -807,38 +807,39 @@ const SPEEDTEST_DOWNLOAD_FALLBACK: &str = "https://www.google.com/images/brandin
 const SPEEDTEST_UPLOAD_URL: &str = "https://httpbin.org/post";
 const SPEEDTEST_UPLOAD_FALLBACK: &str = "https://postman-echo.com/post";
 const SPEEDTEST_SIZE: usize = 100 * 1024; // 100KB
-const SPEEDTEST_RUNS: usize = 3;
+const SPEEDTEST_RUNS: usize = 2;
 const SPEEDTEST_TIMEOUT_SECS: u64 = 10;
 const SPEEDTEST_CEILING: u32 = 120;
 
-/// Run 3× download + upload tests, average, cap at 120 MBps.
+/// Run 2× download + upload tests, keep the higher result, cap at 120 MBps.
 /// Returns (upload_mbps, download_mbps).
 pub fn run_speedtest() -> Result<(u32, u32)> {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(SPEEDTEST_TIMEOUT_SECS))
         .build()?;
 
-    let mut dl_times: Vec<f64> = Vec::new();
-    let mut ul_times: Vec<f64> = Vec::new();
+    let mut best_dl: u32 = 0;
+    let mut best_ul: u32 = 0;
+
+    let dl_urls = [SPEEDTEST_DOWNLOAD_URL, SPEEDTEST_DOWNLOAD_FALLBACK];
+    let ul_urls = [SPEEDTEST_UPLOAD_URL, SPEEDTEST_UPLOAD_FALLBACK];
 
     for i in 0..SPEEDTEST_RUNS {
-        // Download
-        let dl_url = if i == 0 { SPEEDTEST_DOWNLOAD_URL } else { SPEEDTEST_DOWNLOAD_FALLBACK };
-        if let Ok(dur) = measure_download(&client, dl_url) {
-            dl_times.push(dur);
+        if let Ok(dur) = measure_download(&client, dl_urls[i]) {
+            let mbps = time_to_mbps(dur).unwrap_or(0);
+            if mbps > best_dl { best_dl = mbps; }
         }
-
-        // Upload
-        let ul_url = if i == 0 { SPEEDTEST_UPLOAD_URL } else { SPEEDTEST_UPLOAD_FALLBACK };
-        if let Ok(dur) = measure_upload(&client, ul_url) {
-            ul_times.push(dur);
+        if let Ok(dur) = measure_upload(&client, ul_urls[i]) {
+            let mbps = time_to_mbps(dur).unwrap_or(0);
+            if mbps > best_ul { best_ul = mbps; }
         }
     }
 
-    let dl = avg_to_mbps(&dl_times).unwrap_or(crate::config::h2_mbps_down_default());
-    let ul = avg_to_mbps(&ul_times).unwrap_or(crate::config::h2_mbps_up_default());
+    // Fall back to defaults if both runs failed
+    if best_dl == 0 { best_dl = crate::config::h2_mbps_down_default(); }
+    if best_ul == 0 { best_ul = crate::config::h2_mbps_up_default(); }
 
-    Ok((ul.min(SPEEDTEST_CEILING), dl.min(SPEEDTEST_CEILING)))
+    Ok((best_ul.min(SPEEDTEST_CEILING), best_dl.min(SPEEDTEST_CEILING)))
 }
 
 fn measure_download(client: &reqwest::blocking::Client, url: &str) -> Result<f64> {
@@ -855,15 +856,9 @@ fn measure_upload(client: &reqwest::blocking::Client, url: &str) -> Result<f64> 
     Ok(start.elapsed().as_secs_f64())
 }
 
-fn avg_to_mbps(times: &[f64]) -> Option<u32> {
-    if times.is_empty() {
-        return None;
-    }
-    let avg = times.iter().sum::<f64>() / times.len() as f64;
-    if avg <= 0.0 {
-        return None;
-    }
-    let bytes_per_sec = SPEEDTEST_SIZE as f64 / avg;
+fn time_to_mbps(secs: f64) -> Option<u32> {
+    if secs <= 0.0 { return None; }
+    let bytes_per_sec = SPEEDTEST_SIZE as f64 / secs;
     let mbps = (bytes_per_sec * 8.0) / (1024.0 * 1024.0);
     Some(mbps.round() as u32)
 }

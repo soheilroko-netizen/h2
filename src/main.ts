@@ -254,12 +254,12 @@ document.getElementById('btn-save-config')?.addEventListener('click', () => {
   showSettingsMessage('Configs are baked-in. Settings are read-only for now.');
 });
 
-// ── Auto-tune speed test ─────────────────────────────────────
+// ── Auto-tune speed test (settings page) ─────────────────────
 document.getElementById('btn-auto-tune')?.addEventListener('click', async () => {
   const btn = document.getElementById('btn-auto-tune') as HTMLButtonElement;
   btn.disabled = true;
   btn.textContent = 'Testing...';
-  showSettingsMessage('Running speed test (3 runs)...');
+  showSettingsMessage('Running speed test (2 runs)...');
   try {
     const result = await invoke<{ up_mbps: number; down_mbps: number }>('auto_tune_speedtest');
     (document.getElementById('cfg-h2-up-mbps') as HTMLInputElement).value = String(result.up_mbps);
@@ -267,6 +267,25 @@ document.getElementById('btn-auto-tune')?.addEventListener('click', async () => 
     showSettingsMessage(`Done: ↑ ${result.up_mbps} MBps  ↓ ${result.down_mbps} MBps`);
   } catch (e: any) {
     showSettingsMessage(`Speed test failed: ${e}`, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Speed Test';
+  }
+});
+
+// ── Main window speed test button ────────────────────────────
+document.getElementById('btn-main-speedtest')?.addEventListener('click', async () => {
+  const btn = document.getElementById('btn-main-speedtest') as HTMLButtonElement;
+  btn.disabled = true;
+  btn.textContent = 'Testing...';
+  try {
+    const result = await invoke<{ up_mbps: number; down_mbps: number }>('auto_tune_speedtest');
+    const upEl = document.getElementById('h2-up-display');
+    const downEl = document.getElementById('h2-down-display');
+    if (upEl) upEl.textContent = String(result.up_mbps);
+    if (downEl) downEl.textContent = String(result.down_mbps);
+  } catch (e: any) {
+    showMessage(`Speed test failed: ${e}`, true);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Speed Test';
@@ -289,6 +308,20 @@ function updateModeToggleUI(mode: string) {
   if (!stlsBtn || !h2Btn) return;
   stlsBtn.classList.toggle('active', mode === 'shadowtls');
   h2Btn.classList.toggle('active', mode === 'hysteria2');
+  // Show/hide h2 speed display
+  const h2Disp = document.getElementById('h2-speed-display');
+  if (h2Disp) h2Disp.style.display = mode === 'hysteria2' ? 'block' : 'none';
+  if (mode === 'hysteria2') loadH2SpeedsDisplay();
+}
+
+async function loadH2SpeedsDisplay() {
+  try {
+    const s = await invoke<{ up_mbps: number; down_mbps: number }>('get_h2_speeds');
+    const upEl = document.getElementById('h2-up-display');
+    const downEl = document.getElementById('h2-down-display');
+    if (upEl) upEl.textContent = String(s.up_mbps);
+    if (downEl) downEl.textContent = String(s.down_mbps);
+  } catch (e) { /* silent */ }
 }
 
 document.getElementById('mode-stls')?.addEventListener('click', async () => {
