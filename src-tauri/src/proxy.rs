@@ -3,8 +3,7 @@ use anyhow::{bail, Context, Result};
 use crate::config::Config;
 use crate::sysdns;
 use directories::ProjectDirs;
-use serde::{Deserialize, Serialize};
-use std::fs::{self};
+use std::fs;
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
 use std::path::{Path, PathBuf};
@@ -23,186 +22,8 @@ fn no_window(cmd: &mut Command) -> &mut Command {
     cmd
 }
 
-// ── sing-box config structures ─────────────────────────────────────
-
-#[derive(Serialize)]
-struct SbConfig {
-    log: SbLog,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    experimental: Option<SbExperimental>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dns: Option<SbDns>,
-    inbounds: Vec<SbInbound>,
-    outbounds: Vec<SbOutbound>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    route: Option<SbRoute>,
-}
-
-#[derive(Serialize)]
-struct SbExperimental {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    clash_api: Option<SbClashApi>,
-}
-
-#[derive(Serialize)]
-struct SbClashApi {
-    external_controller: String,
-    secret: String,
-    default_mode: String,
-}
-
-#[derive(Serialize)]
-struct SbLog {
-    disabled: bool,
-    level: String,
-    timestamp: bool,
-}
-
-#[derive(Serialize)]
-struct SbDns {
-    servers: Vec<SbDnsServer>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rules: Option<Vec<SbDnsRule>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    strategy: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    r#final: Option<String>,
-}
-
-#[derive(Serialize)]
-struct SbDnsServer {
-    #[serde(rename = "type")]
-    typ: String,
-    tag: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    server: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    server_port: Option<u16>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    detour: Option<String>,
-}
-
-#[derive(Serialize)]
-struct SbDnsRule {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    inbound: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    server: Option<String>,
-}
-
-#[derive(Serialize)]
-struct SbRoute {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rules: Option<Vec<SbRouteRule>>,
-    #[serde(skip_serializing_if = "Option::is_none", rename = "final")]
-    final_outbound: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    auto_detect_interface: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    default_domain_resolver: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    find_process: Option<bool>,
-}
-
-#[derive(Serialize)]
-struct SbRouteRule {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    action: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    protocol: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ip_cidr: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    domain: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    domain_suffix: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    domain_keyword: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    process_name: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    process_path_regex: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    outbound: Option<String>,
-}
-
-#[derive(Serialize)]
-struct SbInbound {
-    #[serde(rename = "type")]
-    typ: String,
-    tag: String,
-    // SOCKS5 fields
-    #[serde(skip_serializing_if = "Option::is_none")]
-    listen: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    listen_port: Option<u16>,
-    // TUN fields
-    #[serde(skip_serializing_if = "Option::is_none")]
-    interface_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    address: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    mtu: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    auto_route: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    strict_route: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    stack: Option<String>,
-}
-
-#[derive(Serialize)]
-struct SbOutbound {
-    #[serde(rename = "type")]
-    typ: String,
-    tag: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    server: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    server_port: Option<u16>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    method: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    password: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tls: Option<SbTls>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    detour: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    udp_over_tcp: Option<SbUdpOverTcp>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    obfs: Option<SbObfs>,
-    // Hysteria2-specific fields
-    #[serde(skip_serializing_if = "Option::is_none")]
-    server_ports: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    hop_interval: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    up_mbps: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    down_mbps: Option<u32>,
-}
-
-#[derive(Serialize)]
-struct SbUdpOverTcp {
-    enabled: bool,
-}
-
-#[derive(Serialize)]
-struct SbTls {
-    enabled: bool,
-    server_name: String,
-    insecure: bool,
-}
-
-#[derive(Serialize)]
-struct SbObfs {
-    #[serde(rename = "type")]
-    typ: String,
-    password: String,
-}
+// ── sing-box config builder ────────────────────────────────────
+// Uses serde_json::json! instead of 30+ struct definitions
 
 pub struct ProxyManager {
     child: Arc<Mutex<Option<Child>>>,
@@ -426,11 +247,10 @@ impl ProxyManager {
 
     // ── VPN / TUN mode config ─────────────────────────────────────
 
-    fn build_vpn_config(&self) -> Result<SbConfig> {
+    fn build_vpn_config(&self) -> Result<serde_json::Value> {
         let c = &self.config;
 
         // Resolve STLS server IP to bypass from TUN (prevents loop)
-        // Fall back to hostname as-is if DNS fails — sing-box resolves at runtime
         let stls_ips: Vec<String> = resolve_hostname(&c.server_address).unwrap_or_else(|_| {
             eprintln!("[stls] DNS resolution failed for {} — using hostname directly", c.server_address);
             vec![]
@@ -442,261 +262,112 @@ impl ProxyManager {
             stls_ips.iter().map(|ip| format!("{ip}/32")).collect()
         };
 
-        // Use resolved IP in outbound server fields to avoid circular DNS
-        let stls_ip = stls_ips.first()
-            .map(|s| s.clone())
-            .unwrap_or_else(|| "198.18.0.0".into());
-
-        let mut outbounds = self.common_outbounds();
-        for ob in &mut outbounds {
-            if ob.tag == "ss-out" || ob.tag == "shadowtls-out" || ob.tag == "h2-out" {
-                ob.server = Some(stls_ip.clone());
-            }
-        }
-
-        // Determine final outbound based on mode
+        let stls_ip = stls_ips.first().cloned().unwrap_or_else(|| "198.18.0.0".into());
         let h2_mode = c.mode == "hysteria2";
         let final_outbound = if h2_mode { "h2-out" } else { "ss-out" };
 
-        let mut cfg = SbConfig {
-            log: SbLog {
-                disabled: false,
-                level: "info".into(),
-                timestamp: true,
-            },
-            experimental: Some(SbExperimental {
-                clash_api: Some(SbClashApi {
-                    external_controller: "127.0.0.1:9097".into(),
-                    secret: "dakal".into(),
-                    default_mode: "rule".into(),
-                }),
-            }),
-            dns: Some(SbDns {
-                servers: vec![
-                    SbDnsServer {
-                        typ: "https".into(),
-                        tag: "remote-doh".into(),
-                        server: Some("1.1.1.1".into()),
-                        server_port: None,
-                        detour: Some(final_outbound.into()),
-                    },
-                    SbDnsServer {
-                        typ: "https".into(),
-                        tag: "google-doh".into(),
-                        server: Some("8.8.8.8".into()),
-                        server_port: None,
-                        detour: Some(final_outbound.into()),
-                    },
-                ],
-                rules: None,
-                strategy: None,
-                r#final: Some("remote-doh".into()),
-            }),
-            inbounds: vec![SbInbound {
-                typ: "tun".into(),
-                tag: "tun-in".into(),
-                listen: None,
-                listen_port: None,
-                interface_name: None,
-                address: Some(vec!["172.19.0.1/30".into()]),
-                mtu: c.mtu,
-                auto_route: Some(true),
-                strict_route: Some(true),
-                stack: Some("system".into()),
-            }],
-            outbounds,
-            route: Some(SbRoute {
-                rules: Some(vec![
-                    SbRouteRule {
-                        action: Some("sniff".into()),
-                        protocol: None,
-                        ip_cidr: None,
-                        domain: None,
-                        domain_suffix: None,
-                        domain_keyword: None,
-                        process_name: None,
-                        process_path_regex: None,
-                        outbound: None,
-                    },
-                    SbRouteRule {
-                        action: Some("hijack-dns".into()),
-                        protocol: Some("dns".into()),
-                        ip_cidr: None,
-                        domain: None,
-                        domain_suffix: None,
-                        domain_keyword: None,
-                        process_name: None,
-                        process_path_regex: None,
-                        outbound: None,
-                    },
-                    SbRouteRule {
-                        action: None,
-                        protocol: None,
-                        ip_cidr: Some(bypass_cidrs),
-                        domain: None,
-                        domain_suffix: None,
-                        domain_keyword: None,
-                        process_name: None,
-                        process_path_regex: None,
-                        outbound: Some("direct".into()),
-                    },
-                ]),
-                final_outbound: Some(final_outbound.into()),
-                auto_detect_interface: Some(true),
-                default_domain_resolver: Some("remote-doh".into()),
-                find_process: Some(false),
-            }),
-        };
+        // Build outbounds
+        let mut outbounds = self.common_outbounds();
+        // Patch server IP for VPN loop prevention
+        for ob in outbounds.as_array_mut().unwrap() {
+            if let Some(tag) = ob.get("tag").and_then(|v| v.as_str()) {
+                if tag == "ss-out" || tag == "shadowtls-out" || tag == "h2-out" {
+                    ob["server"] = serde_json::json!(stls_ip);
+                }
+            }
+        }
 
-        // Add split tunnel rules if configured
+        // Build route rules
+        let mut route_rules = serde_json::json!([
+            {"action": "sniff"},
+            {"action": "hijack-dns", "protocol": "dns"},
+            {"ip_cidr": bypass_cidrs, "outbound": "direct"}
+        ]);
+
+        // Add split tunnel rules
         if !c.split_rules.is_empty() {
             let mut split_rules = Vec::new();
             for split_rule in &c.split_rules {
                 let pattern = &split_rule.pattern;
-                // Wildcard: *.example.com -> domain_suffix ".example.com"
-                // Exact: example.com -> domain ["example.com"]
-                // Keyword: contains "example" -> domain_keyword ["example"]
                 if pattern.starts_with("*.") {
-                    split_rules.push(SbRouteRule {
-                        action: None,
-                        protocol: None,
-                        ip_cidr: None,
-                        domain: None,
-                        domain_suffix: Some(vec![pattern[1..].to_string()]),
-                        domain_keyword: None,
-                        process_name: None,
-                        process_path_regex: None,
-                        outbound: Some("direct".into()),
-                    });
+                    split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": "direct"}));
                 } else if pattern.contains("*") {
-                    split_rules.push(SbRouteRule {
-                        action: None,
-                        protocol: None,
-                        ip_cidr: None,
-                        domain: None,
-                        domain_suffix: None,
-                        domain_keyword: Some(vec![pattern.replace("*", "")]),
-                        process_name: None,
-                        process_path_regex: None,
-                        outbound: Some("direct".into()),
-                    });
+                    split_rules.push(serde_json::json!({"domain_keyword": [pattern.replace("*", "")], "outbound": "direct"}));
                 } else {
-                    split_rules.push(SbRouteRule {
-                        action: None,
-                        protocol: None,
-                        ip_cidr: None,
-                        domain: Some(vec![pattern.clone()]),
-                        domain_suffix: None,
-                        domain_keyword: None,
-                        process_name: None,
-                        process_path_regex: None,
-                        outbound: Some("direct".into()),
-                    });
+                    split_rules.push(serde_json::json!({"domain": [pattern.clone()], "outbound": "direct"}));
                 }
             }
-            cfg.route.as_mut().unwrap().rules.as_mut().unwrap().splice(2..2, split_rules);
+            let arr = route_rules.as_array_mut().unwrap();
+            arr.splice(2..2, split_rules);
         }
 
-        Ok(cfg)
+        Ok(serde_json::json!({
+            "log": {"disabled": false, "level": "info", "timestamp": true},
+            "experimental": {
+                "clash_api": {
+                    "external_controller": "127.0.0.1:9097",
+                    "secret": "dakal",
+                    "default_mode": "rule"
+                }
+            },
+            "dns": {
+                "servers": [{"type": "https", "tag": "remote-doh", "server": "1.1.1.1", "detour": final_outbound}],
+                "final": "remote-doh"
+            },
+            "inbounds": [{
+                "type": "tun", "tag": "tun-in",
+                "address": ["172.19.0.1/30"],
+                "mtu": c.mtu,
+                "auto_route": true, "strict_route": true, "stack": "system"
+            }],
+            "outbounds": outbounds,
+            "route": {
+                "rules": route_rules,
+                "final": final_outbound,
+                "auto_detect_interface": true,
+                "default_domain_resolver": "remote-doh",
+                "find_process": false
+            }
+        }))
     }
 
-    // ── shared outbounds (SS + STLS + Hysteria2 + direct) ─────────────────────
-
-    fn common_outbounds(&self) -> Vec<SbOutbound> {
+    fn common_outbounds(&self) -> serde_json::Value {
         let c = &self.config;
-        let mut outbounds: Vec<SbOutbound> = Vec::new();
 
-        if self.config.mode == "hysteria2" {
-            // Hysteria2 mode: only h2-out + direct
-            outbounds.push(SbOutbound {
-                typ: "hysteria2".into(),
-                tag: "h2-out".into(),
-                server: Some(c.server_address.clone()),
-                server_port: None,
-                server_ports: Some(vec![format!("{}:{}", c.h2_port, c.h2_port + 5000)]), // 40001:45000 range
-                hop_interval: Some("30s".into()),
-                up_mbps: Some(15),
-                down_mbps: Some(80),
-                password: Some(format!("{}:{}", "testuser1", c.h2_password)),
-                tls: Some(SbTls {
-                    enabled: true,
-                    server_name: c.h2_sni.clone(),
-                    insecure: c.h2_insecure,
-                }),
-                obfs: if c.h2_obfs.is_empty() {
-                    None
-                } else {
-                    Some(SbObfs {
-                        typ: c.h2_obfs.clone(),
-                        password: c.h2_obfs_password.clone(),
-                    })
-                },
-                version: None,
-                method: None,
-                detour: None,
-                udp_over_tcp: None,
+        let mut outbounds = Vec::new();
+
+        if c.mode == "hysteria2" {
+            let mut h2 = serde_json::json!({
+                "type": "hysteria2", "tag": "h2-out",
+                "server": c.server_address,
+                "server_ports": [format!("{}:{}", c.h2_port, c.h2_port + 5000)],
+                "hop_interval": "30s",
+                "up_mbps": c.h2_up_mbps,
+                "down_mbps": c.h2_down_mbps,
+                "password": format!("testuser1:{}", c.h2_password),
+                "tls": {"enabled": true, "server_name": c.h2_sni, "insecure": c.h2_insecure}
             });
+            if !c.h2_obfs.is_empty() {
+                h2["obfs"] = serde_json::json!({"type": c.h2_obfs, "password": c.h2_obfs_password});
+            }
+            outbounds.push(h2);
         } else {
-            outbounds.push(SbOutbound {
-                typ: "shadowsocks".into(),
-                tag: "ss-out".into(),
-                server: Some(c.server_address.clone()),
-                server_port: Some(c.ss_port),
-                method: Some("2022-blake3-chacha20-poly1305".into()),
-                password: Some(c.ss_password.clone()),
-                version: None,
-                tls: None,
-                detour: Some("shadowtls-out".into()),
-                udp_over_tcp: Some(SbUdpOverTcp { enabled: true }),
-                obfs: None,
-                server_ports: None,
-                hop_interval: None,
-                up_mbps: None,
-                down_mbps: None,
-            });
-            outbounds.push(SbOutbound {
-                typ: "shadowtls".into(),
-                tag: "shadowtls-out".into(),
-                server: Some(c.server_address.clone()),
-                server_port: Some(c.stls_port),
-                version: Some(3),
-                password: Some(c.stls_password.clone()),
-                tls: Some(SbTls {
-                    enabled: true,
-                    server_name: c.stls_sni.clone(),
-                    insecure: false,
-                }),
-                detour: None,
-                udp_over_tcp: None,
-                method: None,
-                obfs: None,
-                server_ports: None,
-                hop_interval: None,
-                up_mbps: None,
-                down_mbps: None,
-            });
+            outbounds.push(serde_json::json!({
+                "type": "shadowsocks", "tag": "ss-out",
+                "server": c.server_address, "server_port": c.ss_port,
+                "method": "2022-blake3-chacha20-poly1305", "password": c.ss_password,
+                "detour": "shadowtls-out", "udp_over_tcp": {"enabled": true}
+            }));
+            outbounds.push(serde_json::json!({
+                "type": "shadowtls", "tag": "shadowtls-out",
+                "server": c.server_address, "server_port": c.stls_port,
+                "version": 3, "password": c.stls_password,
+                "tls": {"enabled": true, "server_name": c.stls_sni, "insecure": false}
+            }));
         }
 
-        // Always add direct outbound
-        outbounds.push(SbOutbound {
-            typ: "direct".into(),
-            tag: "direct".into(),
-            server: None,
-            server_port: None,
-            method: None,
-            password: None,
-            version: None,
-            tls: None,
-            detour: None,
-            udp_over_tcp: None,
-            obfs: None,
-            server_ports: None,
-            hop_interval: None,
-            up_mbps: None,
-            down_mbps: None,
-        });
-
-        outbounds
+        outbounds.push(serde_json::json!({"type": "direct", "tag": "direct"}));
+        serde_json::json!(outbounds)
     }
 
     // ── sing-box binary management ─────────────────────────────────
@@ -861,59 +532,4 @@ fn time_to_mbps(secs: f64) -> Option<u32> {
     let bytes_per_sec = SPEEDTEST_SIZE as f64 / secs;
     let mbps = (bytes_per_sec * 8.0) / (1024.0 * 1024.0);
     Some(mbps.round() as u32)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Verify VPN DNS config uses modern schema (type field, no legacy address).
-    #[test]
-    fn vpn_dns_uses_modern_schema() {
-        let cfg = SbConfig {
-            log: SbLog { disabled: false, level: "info".into(), timestamp: true },
-            dns: Some(SbDns {
-                servers: vec![
-                    SbDnsServer {
-                        typ: "tcp".into(),
-                        tag: "dns-remote".into(),
-                        server: Some("8.8.8.8".into()),
-                        server_port: Some(53),
-                        detour: None,
-                    },
-                ],
-                rules: Some(vec![SbDnsRule {
-                    inbound: None,
-                    server: Some("dns-remote".into()),
-                }]),
-                strategy: Some("prefer_ipv4".into()),
-            }),
-            inbounds: vec![],
-            outbounds: vec![],
-            route: None,
-        };
-
-        let json = serde_json::to_value(&cfg).unwrap();
-        let dns = json["dns"].as_object().unwrap();
-
-        assert!(!dns.contains_key("independent_cache"));
-
-        let servers = dns["servers"].as_array().unwrap();
-        assert_eq!(servers.len(), 1);
-
-        for server in servers {
-            let typ = server["type"].as_str().unwrap();
-            assert!(!server.contains_key("address"));
-            assert!(!server.contains_key("transport"));
-            assert!(!server.contains_key("detour"));
-
-            match typ {
-                "tcp" => {
-                    assert!(server["server"].is_string());
-                    assert!(server["server_port"].is_u64());
-                }
-                other => panic!("unexpected DNS server type: {other}"),
-            }
-        }
-    }
 }

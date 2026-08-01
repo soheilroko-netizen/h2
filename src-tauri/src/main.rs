@@ -161,22 +161,10 @@ fn get_config() -> Result<Config, String> {
 }
 
 #[tauri::command]
-fn save_config(_config: Config) -> Result<String, String> {
-    // No-op for now — configs are baked in
-    Ok("Saved".into())
-}
-
-#[tauri::command]
 fn set_mode(mode: String, state: State<AppState>) -> Result<String, String> {
     // Stop proxy if running (mode change requires restart)
-    {
-        let mut proxy = state.proxy.lock().unwrap();
-        if proxy.is_running() {
-            proxy.stop().map_err(|e| e.to_string())?;
-            *state.started_at.lock().unwrap() = None;
-            *state.prev_total.lock().unwrap() = (0, 0);
-            *state.prev_time.lock().unwrap() = None;
-        }
+    if state.proxy.lock().unwrap().is_running() {
+        let _ = stop_proxy_inner(&state);
     }
     config::save_mode(&mode).map_err(|e| e.to_string())?;
     Ok(format!("Mode set to '{}'", mode))
@@ -185,38 +173,6 @@ fn set_mode(mode: String, state: State<AppState>) -> Result<String, String> {
 #[tauri::command]
 fn get_mode() -> Result<String, String> {
     Ok(config::load_mode())
-}
-
-#[tauri::command]
-fn get_total_traffic() -> Result<String, String> {
-    let client = sing_box_client();
-    let resp = client
-        .get("http://127.0.0.1:9097/connections")
-        .header("Authorization", "Bearer dakal")
-        .send()
-        .map_err(|e| format!("request: {e}"))?;
-
-    if !resp.status().is_success() {
-        return Ok(r#"{"up":0,"down":0}"#.into());
-    }
-
-    let v: serde_json::Value = resp.json().map_err(|e| format!("json: {e}"))?;
-
-    let up = v["upload_total"].as_u64().unwrap_or(0);
-    let down = v["download_total"].as_u64().unwrap_or(0);
-    if up == 0 && down == 0 {
-        let arr_opt = v["connections"].as_array().or_else(|| v.as_array());
-        if let Some(arr) = arr_opt {
-            let mut sum_up: u64 = 0;
-            let mut sum_down: u64 = 0;
-            for c in arr {
-                sum_up = sum_up.saturating_add(c["upload"].as_u64().unwrap_or(0));
-                sum_down = sum_down.saturating_add(c["download"].as_u64().unwrap_or(0));
-            }
-            return Ok(format!(r#"{{"up":{},"down":{}}}"#, sum_up, sum_down));
-        }
-    }
-    Ok(format!(r#"{{"up":{},"down":{}}}"#, up, down))
 }
 
 #[tauri::command]
@@ -232,117 +188,74 @@ fn get_uptime(state: State<AppState>) -> Result<u64, String> {
 fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     let proxy = state.proxy.lock().unwrap();
     let running = proxy.is_running();
+    let pid = proxy.pid();
+    let log_path = proxy.debug_log_path.clone();
     drop(proxy);
 
     let mode = config::load_mode();
 
     if !running {
         return Ok(FullStatus {
-            running: false,
-            mode,
-            server: None,
-            uptime_secs: 0,
-            pid: None,
-            traffic_up: 0,
-            traffic_down: 0,
-            total_up: 0,
-            total_down: 0,
+            running: false, mode, server: None, uptime_secs: 0, pid: None,
+            traffic_up: 0, traffic_down: 0, total_up: 0, total_down: 0,
             log_lines: Vec::new(),
         });
     }
 
-    let started_at = state.started_at.lock().unwrap();
-    let uptime_secs = started_at.map(|s| s.elapsed().as_secs()).unwrap_or(0);
-    drop(started_at);
-
     let cfg = config::get_active_config();
-    let server_addr = Some(cfg.server_address.clone());
+    let uptime_secs = state.started_at.lock().unwrap().map(|s| s.elapsed().as_secs()).unwrap_or(0);
 
-    let proxy2 = state.proxy.lock().unwrap();
-    let pid = proxy2.pid();
-    let log_path = proxy2.debug_log_path.clone();
-    drop(proxy2);
-
+    // Read last 100 log lines
     let log_lines: Vec<String> = std::fs::read_to_string(&log_path)
-        .map(|f| {
-            f.lines()
-                .rev()
-                .take(100)
-                .map(|l| l.to_string())
-                .collect::<Vec<_>>()
-                .into_iter()
-                .rev()
-                .collect()
-        })
+        .map(|f| f.lines().rev().take(100).map(String::from).rev().collect())
         .unwrap_or_default();
 
+    // Get traffic from clash API
     let client = sing_box_client();
-
-    let connections_resp = client
+    let (cur_up, cur_down) = client
         .get("http://127.0.0.1:9097/connections")
         .header("Authorization", "Bearer dakal")
         .timeout(std::time::Duration::from_secs(2))
         .send()
         .ok()
-        .and_then(|r| r.json::<serde_json::Value>().ok());
-
-    let (cur_up, cur_down) = connections_resp
+        .and_then(|r| r.json::<serde_json::Value>().ok())
         .map(|v| {
             let up = v["upload_total"].as_u64().unwrap_or(0);
             let down = v["download_total"].as_u64().unwrap_or(0);
             if up == 0 && down == 0 {
-                let arr_opt = v["connections"].as_array().or_else(|| v.as_array());
-                if let Some(arr) = arr_opt {
-                    let mut sum_up: u64 = 0;
-                    let mut sum_down: u64 = 0;
-                    for c in arr {
-                        sum_up = sum_up.saturating_add(c["upload"].as_u64().unwrap_or(0));
-                        sum_down = sum_down.saturating_add(c["download"].as_u64().unwrap_or(0));
-                    }
-                    (sum_up, sum_down)
-                } else {
-                    (0, 0)
-                }
-            } else {
-                (up, down)
-            }
+                // Fallback: sum from connections array
+                v["connections"].as_array().map(|arr| {
+                    arr.iter().fold((0u64, 0u64), |(u, d), c| (
+                        u.saturating_add(c["upload"].as_u64().unwrap_or(0)),
+                        d.saturating_add(c["download"].as_u64().unwrap_or(0)),
+                    ))
+                }).unwrap_or((0, 0))
+            } else { (up, down) }
         })
         .unwrap_or((0, 0));
 
+    // Calculate traffic speed (bytes/sec)
     let now = Instant::now();
     let mut prev_total = state.prev_total.lock().unwrap();
     let mut prev_time = state.prev_time.lock().unwrap();
-
-    let (traffic_up, traffic_down) = if let Some(prev_t) = *prev_time {
+    let (traffic_up, traffic_down) = prev_time.and_then(|prev_t| {
         let elapsed = now.duration_since(prev_t).as_secs_f64();
         if elapsed > 0.5 {
             let up_delta = cur_up.saturating_sub(prev_total.0);
             let down_delta = cur_down.saturating_sub(prev_total.1);
             *prev_total = (cur_up, cur_down);
             *prev_time = Some(now);
-            ((up_delta as f64 / elapsed) as u64, (down_delta as f64 / elapsed) as u64)
-        } else {
-            (0, 0)
-        }
-    } else {
+            Some(((up_delta as f64 / elapsed) as u64, (down_delta as f64 / elapsed) as u64))
+        } else { None }
+    }).unwrap_or_else(|| {
         *prev_total = (cur_up, cur_down);
         *prev_time = Some(now);
         (0, 0)
-    };
-    drop(prev_total);
-    drop(prev_time);
+    });
 
     Ok(FullStatus {
-        running: true,
-        mode,
-        server: server_addr,
-        uptime_secs,
-        pid,
-        traffic_up,
-        traffic_down,
-        total_up: cur_up,
-        total_down: cur_down,
-        log_lines,
+        running: true, mode, server: Some(cfg.server_address), uptime_secs, pid,
+        traffic_up, traffic_down, total_up: cur_up, total_down: cur_down, log_lines,
     })
 }
 
@@ -586,7 +499,6 @@ fn main() {
             start_proxy,
             stop_proxy,
             get_config,
-            save_config,
             set_mode,
             get_mode,
             real_ping,
