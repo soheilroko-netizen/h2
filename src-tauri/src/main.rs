@@ -396,6 +396,15 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn auto_tune_speedtest() -> Result<serde_json::Value, String> {
+    let (up_mbps, down_mbps) = proxy::run_speedtest().map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "up_mbps": up_mbps,
+        "down_mbps": down_mbps,
+    }))
+}
+
+#[tauri::command]
 fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("settings") {
         win.show().ok();
@@ -564,6 +573,7 @@ fn main() {
             get_full_status,
             get_log,
             open_settings_window,
+            auto_tune_speedtest,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");

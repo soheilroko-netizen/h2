@@ -801,6 +801,73 @@ fn resolve_hostname(host: &str) -> Result<Vec<String>> {
 
 // ── tests ────────────────────────────────────────────────────────────
 
+// ── Auto-tune speed test ─────────────────────────────────────
+const SPEEDTEST_DOWNLOAD_URL: &str = "https://speed.cloudflare.com/__down";
+const SPEEDTEST_DOWNLOAD_FALLBACK: &str = "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png";
+const SPEEDTEST_UPLOAD_URL: &str = "https://httpbin.org/post";
+const SPEEDTEST_UPLOAD_FALLBACK: &str = "https://postman-echo.com/post";
+const SPEEDTEST_SIZE: usize = 100 * 1024; // 100KB
+const SPEEDTEST_RUNS: usize = 3;
+const SPEEDTEST_TIMEOUT_SECS: u64 = 10;
+const SPEEDTEST_CEILING: u32 = 120;
+
+/// Run 3× download + upload tests, average, cap at 120 MBps.
+/// Returns (upload_mbps, download_mbps).
+pub fn run_speedtest() -> Result<(u32, u32)> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(SPEEDTEST_TIMEOUT_SECS))
+        .build()?;
+
+    let mut dl_times: Vec<f64> = Vec::new();
+    let mut ul_times: Vec<f64> = Vec::new();
+
+    for i in 0..SPEEDTEST_RUNS {
+        // Download
+        let dl_url = if i == 0 { SPEEDTEST_DOWNLOAD_URL } else { SPEEDTEST_DOWNLOAD_FALLBACK };
+        if let Ok(dur) = measure_download(&client, dl_url) {
+            dl_times.push(dur);
+        }
+
+        // Upload
+        let ul_url = if i == 0 { SPEEDTEST_UPLOAD_URL } else { SPEEDTEST_UPLOAD_FALLBACK };
+        if let Ok(dur) = measure_upload(&client, ul_url) {
+            ul_times.push(dur);
+        }
+    }
+
+    let dl = avg_to_mbps(&dl_times).unwrap_or(crate::config::h2_mbps_down_default());
+    let ul = avg_to_mbps(&ul_times).unwrap_or(crate::config::h2_mbps_up_default());
+
+    Ok((ul.min(SPEEDTEST_CEILING), dl.min(SPEEDTEST_CEILING)))
+}
+
+fn measure_download(client: &reqwest::blocking::Client, url: &str) -> Result<f64> {
+    let start = std::time::Instant::now();
+    let resp = client.get(url).send()?;
+    let _bytes = resp.bytes()?;
+    Ok(start.elapsed().as_secs_f64())
+}
+
+fn measure_upload(client: &reqwest::blocking::Client, url: &str) -> Result<f64> {
+    let body = vec![0u8; SPEEDTEST_SIZE];
+    let start = std::time::Instant::now();
+    let _resp = client.post(url).body(body).send()?;
+    Ok(start.elapsed().as_secs_f64())
+}
+
+fn avg_to_mbps(times: &[f64]) -> Option<u32> {
+    if times.is_empty() {
+        return None;
+    }
+    let avg = times.iter().sum::<f64>() / times.len() as f64;
+    if avg <= 0.0 {
+        return None;
+    }
+    let bytes_per_sec = SPEEDTEST_SIZE as f64 / avg;
+    let mbps = (bytes_per_sec * 8.0) / (1024.0 * 1024.0);
+    Some(mbps.round() as u32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
