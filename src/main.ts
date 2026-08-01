@@ -254,6 +254,25 @@ document.getElementById('btn-save-config')?.addEventListener('click', () => {
   showSettingsMessage('Configs are baked-in. Settings are read-only for now.');
 });
 
+// ── Auto-tune speed test ─────────────────────────────────────
+document.getElementById('btn-auto-tune')?.addEventListener('click', async () => {
+  const btn = document.getElementById('btn-auto-tune') as HTMLButtonElement;
+  btn.disabled = true;
+  btn.textContent = 'Testing...';
+  showSettingsMessage('Running speed test (3 runs)...');
+  try {
+    const result = await invoke<{ up_mbps: number; down_mbps: number }>('auto_tune_speedtest');
+    (document.getElementById('cfg-h2-up-mbps') as HTMLInputElement).value = String(result.up_mbps);
+    (document.getElementById('cfg-h2-down-mbps') as HTMLInputElement).value = String(result.down_mbps);
+    showSettingsMessage(`Done: ↑ ${result.up_mbps} MBps  ↓ ${result.down_mbps} MBps`);
+  } catch (e: any) {
+    showSettingsMessage(`Speed test failed: ${e}`, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Speed Test';
+  }
+});
+
 // ── Mode toggle ───────────────────────────────────────────────
 async function loadModeToggle() {
   try {
