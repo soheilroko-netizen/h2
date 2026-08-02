@@ -15,6 +15,9 @@ pub struct Config {
     pub stls_sni: String,
     pub socks5_port: u16,
     pub mtu: Option<u32>,
+    #[serde(default)]
+    pub split_mode: String, // "full", "iran", "custom"
+    #[serde(default)]
     pub split_rules: Vec<SplitRule>,
 
     pub mode: String,
@@ -132,6 +135,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             stls_sni: "dl.google.com".to_string(),
             socks5_port: 1080,
             mtu: None,
+            split_mode: "full".to_string(),
             split_rules: vec![],
             mode: "shadowtls".to_string(),
             h2_port: 40001,
@@ -154,6 +158,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             stls_sni: "".to_string(),
             socks5_port: 1080,
             mtu: None,
+            split_mode: "full".to_string(),
             split_rules: vec![],
             mode: "hysteria2".to_string(),
             h2_port: 40001,
@@ -176,6 +181,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             stls_sni: "dl.google.com".to_string(),
             socks5_port: 1080,
             mtu: None,
+            split_mode: "full".to_string(),
             split_rules: vec![],
             mode: "shadowtls".to_string(),
             h2_port: 40001,
@@ -198,6 +204,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             stls_sni: "".to_string(),
             socks5_port: 1080,
             mtu: None,
+            split_mode: "full".to_string(),
             split_rules: vec![],
             mode: "hysteria2".to_string(),
             h2_port: 40001,

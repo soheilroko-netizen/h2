@@ -1,7 +1,12 @@
 // main.rs - Tauri app entry with commands
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-// ── Single-instance guard via named mutex (Windows) ──────────────────
+mod config;
+mod proxy;
+mod sysdns;
+mod geofiles;
+
+use config::Config;
 #[cfg(target_os = "windows")]
 fn check_single_instance() {
     use std::ffi::CString;
@@ -49,11 +54,6 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 
-mod config;
-mod proxy;
-mod sysdns;
-
-use config::Config;
 use proxy::ProxyManager;
 
 struct TrafficSample {
@@ -359,18 +359,32 @@ fn get_h2_speeds() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn update_settings(_socks5_port: u16, _mtu: Option<u32>, _split_rules: Vec<serde_json::Value>) -> Result<(), String> {
-    // Settings stored per-profile would require more config refactoring
-    // For now, just validate and return OK (split tunneling will be implemented later)
-    if _socks5_port < 1024 || _socks5_port > 65535 {
-        return Err("Invalid SOCKS5 port".into());
-    }
-    if let Some(m) = _mtu {
+fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String>) -> Result<(), String> {
+    // Validate MTU
+    if let Some(m) = mtu {
         if m < 576 || m > 9000 {
             return Err("MTU must be between 576 and 9000".into());
         }
     }
+    
+    // Validate split mode
+    if !["full", "iran", "custom"].contains(&split_mode.as_str()) {
+        return Err("Invalid split mode".into());
+    }
+    
+    // If iran mode and geofiles don't exist, download them
+    if split_mode == "iran" && !geofiles::geofiles_exist() {
+        geofiles::download_geofiles().map_err(|e| format!("Failed to download geofiles: {}", e))?;
+    }
+    
+    // TODO: Save settings to config (per-profile or global)
+    // For now just validate
     Ok(())
+}
+
+#[tauri::command]
+fn update_geofiles() -> Result<(), String> {
+    geofiles::download_geofiles().map_err(|e| format!("Failed to download geofiles: {}", e))
 }
 
 #[tauri::command]
@@ -565,6 +579,7 @@ fn main() {
             set_profile,
             list_profiles,
             update_settings,
+            update_geofiles,
             get_h2_speeds,
             apply_h2_preset,
         ])

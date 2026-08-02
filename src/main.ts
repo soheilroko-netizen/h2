@@ -63,10 +63,12 @@ const btnRefreshLog = document.getElementById('btn-refresh-log')!;
 const btnBackFromLog = document.getElementById('btn-back-from-log')!;
 
 // Settings inputs
-const settingSocks5Port = document.getElementById('setting-socks5-port') as HTMLInputElement;
+const settingSplitMode = document.getElementById('setting-split-mode') as HTMLSelectElement;
+const customRulesContainer = document.getElementById('custom-rules-container')!;
 const settingMtu = document.getElementById('setting-mtu') as HTMLInputElement;
 const settingSplitRules = document.getElementById('setting-split-rules') as HTMLTextAreaElement;
 const btnSaveSettings = document.getElementById('btn-save-settings')!;
+const btnUpdateGeofiles = document.getElementById('btn-update-geofiles')!;
 
 // ── Helpers ──────────────────────────────────────────────────
 function formatBytes(bytes: number): string {
@@ -236,13 +238,25 @@ async function loadH2PresetSelection() {
 async function loadSettings() {
   try {
     const cfg = await invoke<Config>('get_config');
-    settingSocks5Port.value = String(cfg.socks5_port);
+    settingSplitMode.value = cfg.split_mode || 'full';
     settingMtu.value = cfg.mtu ? String(cfg.mtu) : '';
     settingSplitRules.value = cfg.split_rules?.map(r => r.pattern).join('\n') || '';
+    
+    // Trigger split mode change to show/hide elements
+    const mode = settingSplitMode.value;
+    customRulesContainer.style.display = mode === 'custom' ? 'block' : 'none';
+    btnUpdateGeofiles.style.display = mode === 'iran' ? 'inline-block' : 'none';
   } catch (e) {
     console.error('Failed to load settings:', e);
   }
 }
+
+// ── Settings panel toggle & split mode handling ─────────────
+settingSplitMode.addEventListener('change', () => {
+  const mode = settingSplitMode.value;
+  customRulesContainer.style.display = mode === 'custom' ? 'block' : 'none';
+  btnUpdateGeofiles.style.display = mode === 'iran' ? 'inline-block' : 'none';
+});
 
 btnSettingsToggle.addEventListener('click', () => {
   const visible = settingsPanel.style.display !== 'none';
@@ -252,16 +266,25 @@ btnSettingsToggle.addEventListener('click', () => {
 
 btnSaveSettings.addEventListener('click', async () => {
   try {
-    const socks5Port = parseInt(settingSocks5Port.value, 10);
     const mtu = settingMtu.value ? parseInt(settingMtu.value, 10) : null;
+    const splitMode = settingSplitMode.value;
     const splitRules = settingSplitRules.value
       .split('\n')
       .map(s => s.trim())
-      .filter(s => s.length > 0)
-      .map(pattern => ({ pattern }));
+      .filter(s => s.length > 0);
 
-    await invoke('update_settings', { socks5Port, mtu, splitRules });
+    await invoke('update_settings', { mtu, splitMode, splitRules });
     showMessage('Settings saved', false);
+  } catch (e) {
+    showMessage(`Failed: ${e}`, true);
+  }
+});
+
+btnUpdateGeofiles.addEventListener('click', async () => {
+  try {
+    showMessage('Downloading geofiles...', false);
+    await invoke('update_geofiles');
+    showMessage('Geofiles updated', false);
   } catch (e) {
     showMessage(`Failed: ${e}`, true);
   }
