@@ -177,8 +177,12 @@ pub fn h2_auto_default() -> bool { false }
 /// Get the config for the active mode
 pub fn get_active_config() -> Config {
     let mode = load_mode();
-    match mode.as_str() {
+    let (up, down) = load_h2_speeds();
+    let mut cfg = match mode.as_str() {
         "hysteria2" => h2_defaults(),
         _ => stls_defaults(),
-    }
+    };
+    cfg.h2_up_mbps = up;
+    cfg.h2_down_mbps = down;
+    cfg
 }
