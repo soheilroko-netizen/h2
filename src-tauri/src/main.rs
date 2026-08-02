@@ -63,6 +63,7 @@ struct AppState {
     prev_time: Mutex<Option<Instant>>,
     http_client: reqwest::blocking::Client,
     cached_log: Mutex<(std::time::SystemTime, Vec<String>)>,
+    is_running_cache: Mutex<bool>,
 }
 
 // ── Tray menu rebuild helper ───────────────────────────────────
@@ -131,6 +132,7 @@ fn start_proxy(app: tauri::AppHandle, state: State<AppState>) -> Result<String, 
     let mut proxy = state.proxy.lock().unwrap();
     let result = proxy.start().map_err(|e| e.to_string())?;
     *state.started_at.lock().unwrap() = Some(Instant::now());
+    *state.is_running_cache.lock().unwrap() = proxy.is_running();
     drop(proxy);
     update_tray_state(&app);
     Ok(result)
@@ -142,6 +144,7 @@ fn stop_proxy_inner(state: &State<AppState>) -> Result<String, String> {
     *state.started_at.lock().unwrap() = None;
     *state.prev_total.lock().unwrap() = (0, 0);
     *state.prev_time.lock().unwrap() = None;
+    *state.is_running_cache.lock().unwrap() = false;
     Ok(result)
 }
 
@@ -228,31 +231,35 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
         cache.1.clone()
     };
 
-    // Get traffic from clash API
-    let client = sing_box_client();
-    let (cur_up, cur_down) = client
-        .get("http://127.0.0.1:9097/connections")
-        .header("Authorization", "Bearer dakal")
-        .timeout(std::time::Duration::from_secs(2))
-        .send()
-        .ok()
-        .and_then(|r| r.json::<serde_json::Value>().ok())
-        .map(|v| {
-            let up = v["upload_total"].as_u64().unwrap_or(0);
-            let down = v["download_total"].as_u64().unwrap_or(0);
-            if up == 0 && down == 0 {
-                // Fallback: sum from connections array
-                v["connections"].as_array().map(|arr| {
-                    arr.iter().fold((0u64, 0u64), |(u, d), c| (
-                        u.saturating_add(c["upload"].as_u64().unwrap_or(0)),
-                        d.saturating_add(c["download"].as_u64().unwrap_or(0)),
-                    ))
-                }).unwrap_or((0, 0))
-            } else { (up, down) }
-        })
-        .unwrap_or((0, 0));
-
-    // Calculate traffic speed (bytes/sec)
+    // Get traffic from clash API (skip if process died)
+    let (cur_up, cur_down) = if running && pid.is_some() {
+        let client = sing_box_client();
+        client
+            .get("http://127.0.0.1:9097/connections")
+            .header("Authorization", "Bearer dakal")
+            .timeout(std::time::Duration::from_secs(1))
+            .send()
+            .ok()
+            .and_then(|r| r.json::<serde_json::Value>().ok())
+            .map(|v| {
+                let up = v["upload_total"].as_u64().unwrap_or(0);
+                let down = v["download_total"].as_u64().unwrap_or(0);
+                if up == 0 && down == 0 {
+                    // Fallback: sum from connections array
+                    v["connections"].as_array().map(|arr| {
+                        arr.iter().fold((0u64, 0u64), |(u, d), c| (
+                            u.saturating_add(c["upload"].as_u64().unwrap_or(0)),
+                            d.saturating_add(c["download"].as_u64().unwrap_or(0)),
+                        ))
+                    }).unwrap_or((up, down))
+                } else {
+                    (up, down)
+                }
+            })
+            .unwrap_or((0, 0))
+    } else {
+        (0, 0)
+    };
     let now = Instant::now();
     let mut prev_total = state.prev_total.lock().unwrap();
     let mut prev_time = state.prev_time.lock().unwrap();
@@ -303,7 +310,7 @@ fn get_log(state: State<AppState>) -> Result<String, String> {
 
 #[tauri::command]
 fn real_ping(state: State<AppState>) -> Result<String, String> {
-    let running = state.proxy.lock().unwrap().is_running();
+    let running = *state.is_running_cache.lock().unwrap();
     if !running {
         return Err("VPN not connected".into());
     }
@@ -397,6 +404,7 @@ fn main() {
                 .build()
                 .unwrap(),
             cached_log: Mutex::new((std::time::SystemTime::UNIX_EPOCH, Vec::new())),
+            is_running_cache: Mutex::new(false),
         })
         .setup(|app| {
             let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;

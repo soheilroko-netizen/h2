@@ -31,6 +31,7 @@ pub struct ProxyManager {
     config: Config,
     saved_dns: Arc<Mutex<Option<sysdns::DnsState>>>,
     active_mode: Arc<Mutex<Option<String>>>,
+    dns_cache: Arc<Mutex<Option<Vec<String>>>>,
     pub debug_log_path: PathBuf,
 }
 
@@ -49,6 +50,7 @@ impl ProxyManager {
             config,
             saved_dns: Arc::new(Mutex::new(None)),
             active_mode: Arc::new(Mutex::new(None)),
+            dns_cache: Arc::new(Mutex::new(None)),
             debug_log_path: config_dir.join("dakal-tls-debug.log"),
         })
     }
@@ -183,29 +185,6 @@ impl ProxyManager {
         *self.child.lock().unwrap() = Some(child);
         *self.active_mode.lock().unwrap() = Some("vpn".into());
 
-        // Short wait — just enough to catch instant crash on first poll
-        let mut guard = self.child.lock().unwrap();
-        if let Some(ref mut c) = *guard {
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            match c.try_wait() {
-                Ok(Some(status)) => {
-                    let log = fs::read_to_string(&log_path).unwrap_or_default();
-                    self.debug_log(format!("sing-box exited (code={:?})", status.code()));
-                    guard.take();
-                    *self.active_mode.lock().unwrap() = None;
-                    bail!("sing-box exited (code={:?}):\n{}", status.code(), log.trim());
-                }
-                Err(e) => {
-                    self.debug_log(format!("sing-box check error: {e}"));
-                    guard.take();
-                    *self.active_mode.lock().unwrap() = None;
-                    bail!("sing-box check failed: {e}");
-                }
-                Ok(None) => {}
-            }
-        }
-        drop(guard);
-
         // Switch DNS to 8.8.8.8 so queries hit TUN
         match sysdns::DnsState::enable() {
             Ok(dns) => {
@@ -250,11 +229,20 @@ impl ProxyManager {
     fn build_vpn_config(&self) -> Result<serde_json::Value> {
         let c = &self.config;
 
-        // Resolve STLS server IP to bypass from TUN (prevents loop)
-        let stls_ips: Vec<String> = resolve_hostname(&c.server_address).unwrap_or_else(|_| {
-            eprintln!("[stls] DNS resolution failed for {} — using hostname directly", c.server_address);
-            vec![]
-        });
+        // Resolve STLS server IP to bypass from TUN (cached)
+        let stls_ips: Vec<String> = {
+            let mut cache = self.dns_cache.lock().unwrap();
+            if let Some(ips) = cache.as_ref() {
+                ips.clone()
+            } else {
+                let ips = resolve_hostname(&c.server_address).unwrap_or_else(|_| {
+                    eprintln!("[stls] DNS resolution failed for {} — using hostname directly", c.server_address);
+                    vec![]
+                });
+                *cache = Some(ips.clone());
+                ips
+            }
+        };
 
         let bypass_cidrs: Vec<String> = if stls_ips.is_empty() {
             vec!["198.18.0.0/15".into()]

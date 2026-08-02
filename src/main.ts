@@ -118,7 +118,7 @@ async function doPing() {
 function startPingLoop() {
   stopPingLoop();
   doPing();
-  pingTimer = setInterval(doPing, 2000);
+  pingTimer = setInterval(doPing, 5000);
 }
 
 function stopPingLoop() {
