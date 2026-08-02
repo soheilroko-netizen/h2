@@ -337,6 +337,12 @@ fn apply_h2_preset(name: String) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
+fn get_h2_speeds() -> Result<serde_json::Value, String> {
+    let (up, down) = config::load_h2_speeds();
+    Ok(serde_json::json!({ "up_mbps": up, "down_mbps": down }))
+}
+
+#[tauri::command]
 fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("settings") {
         win.show().ok();

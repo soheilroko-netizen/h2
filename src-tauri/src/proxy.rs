@@ -6,7 +6,7 @@ use directories::ProjectDirs;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::ToSocketAddrs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
