@@ -55,7 +55,6 @@ const statusCard = document.querySelector('.status-card')!;
 
 // Metrics elements
 const pingValue = document.getElementById('ping-value')!;
-const uptimeValue = document.getElementById('uptime-value')!;
 const trafficUpValue = document.getElementById('traffic-up-value')!;
 const trafficDownValue = document.getElementById('traffic-down-value')!;
 const splitIndicator = document.getElementById('split-indicator')!;
@@ -64,6 +63,7 @@ const sparklineDown = document.getElementById('sparkline-down') as HTMLCanvasEle
 
 // Controls elements
 const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
+const btnStartText = document.getElementById('btn-start-text')!;
 const btnStop = document.getElementById('btn-stop') as HTMLButtonElement;
 const message = document.getElementById('message')!;
 
@@ -204,7 +204,7 @@ function startUptimeTimer() {
   uptimeTimer = setInterval(() => {
     if (uptimeStartSecs !== null) {
       const elapsed = uptimeStartSecs + Math.floor((Date.now() - uptimeRefresh) / 1000);
-      uptimeValue.textContent = formatUptime(elapsed);
+      btnStartText.textContent = formatUptime(elapsed);
     }
   }, 1000);
 }
@@ -213,6 +213,7 @@ function stopUptimeTimer() {
   if (uptimeTimer) clearInterval(uptimeTimer);
   uptimeTimer = null;
   uptimeStartSecs = null;
+  btnStartText.textContent = 'Start';
 }
 
 let uptimeRefresh = Date.now();
@@ -229,7 +230,7 @@ async function updateStatus() {
     if (!s.running) pingValue.textContent = '-';
 
     uptimeStartSecs = s.uptime_secs;
-    uptimeValue.textContent = formatUptime(s.uptime_secs);
+    btnStartText.textContent = s.running ? formatUptime(s.uptime_secs) : 'Start';
 
     trafficUpValue.textContent = s.running ? formatSpeed(s.traffic_up) : '0 B/s';
     trafficDownValue.textContent = s.running ? formatSpeed(s.traffic_down) : '0 B/s';

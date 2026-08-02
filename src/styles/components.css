@@ -38,6 +38,16 @@
   background: var(--border);
 }
 
+.btn-danger {
+  background: var(--error);
+  color: white;
+  border: 1px solid var(--error);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
 .btn-small {
   min-height: 36px;
   padding: 6px 14px;
