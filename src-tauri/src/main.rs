@@ -360,6 +360,8 @@ fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
         .title("dakal-tls — Settings")
         .inner_size(580.0, 520.0)
         .resizable(true)
+        .closable(true)
+        .decorations(true)
         .build()
         .map_err(|e| format!("settings window: {e}"))?;
     Ok(())

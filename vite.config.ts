@@ -1,14 +1,19 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        settings: resolve(__dirname, 'settings.html'),
+      },
+    },
+  },
   clearScreen: false,
   server: {
-    host: true,
-    port: 1420,
     strictPort: true,
+    port: 1420,
   },
-  build: {
-    target: 'es2022',
-    outDir: 'dist',
-  },
-})
+  envPrefix: ['VITE_', 'TAURI_'],
+});
