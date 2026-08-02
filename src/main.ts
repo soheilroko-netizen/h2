@@ -25,6 +25,7 @@ interface Config {
   stls_sni: string;
   socks5_port: number;
   mtu?: number;
+  split_mode?: string;
   split_rules?: { pattern: string }[];
   mode: string;
   h2_port: number;
@@ -39,20 +40,30 @@ interface Config {
   h2_auto: boolean;
 }
 
-// ── Elements ─────────────────────────────────────────────────
+// ── Elements ─────────────────────────────────────────────
+// Header elements
+const serverSelector = document.getElementById('server-selector') as HTMLSelectElement;
+const protocolTabs = document.querySelectorAll('.protocol-tabs .tab');
+const btnSettingsToggle = document.getElementById('btn-settings-toggle')!;
+const btnLog = document.getElementById('btn-main-log')!;
+
+// Status elements
 const statusDot = document.getElementById('status-dot')!;
 const statusText = document.getElementById('status-text')!;
 const statusAddress = document.getElementById('status-address')!;
+
+// Metrics elements
 const pingValue = document.getElementById('ping-value')!;
 const uptimeValue = document.getElementById('uptime-value')!;
 const trafficValue = document.getElementById('traffic-value')!;
 const totalTrafficValue = document.getElementById('total-traffic-value')!;
-const message = document.getElementById('message')!;
+
+// Controls elements
 const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
 const btnStop = document.getElementById('btn-stop') as HTMLButtonElement;
-const btnLog = document.getElementById('btn-main-log')!;
-const btnSettingsToggle = document.getElementById('btn-settings-toggle')!;
-const profileSelector = document.getElementById('profile-selector') as HTMLSelectElement;
+const message = document.getElementById('message')!;
+
+// Settings panel
 const settingsPanel = document.getElementById('settings-panel')!;
 
 // Views
@@ -204,21 +215,51 @@ async function refreshLog() {
   }
 }
 
-// ── Profile management ───────────────────────────────────────
+// ── Profile management (Phase 2: Server + Protocol) ─────────
+// State: current server and protocol
+let currentServer = 'germany-1';
+let currentProtocol: 'h2' | 'stls' = 'h2';
+
+function getProfileName(): string {
+  return `${currentServer}-${currentProtocol}`;
+}
+
+function parseProfile(profile: string): { server: string; protocol: 'h2' | 'stls' } {
+  // Parse "germany-1-h2" -> { server: "germany-1", protocol: "h2" }
+  const parts = profile.split('-');
+  const protocol = parts[parts.length - 1] as 'h2' | 'stls';
+  const server = parts.slice(0, -1).join('-');
+  return { server, protocol };
+}
+
 async function loadProfile() {
   try {
     const profile = await invoke<string>('get_profile');
-    profileSelector.value = profile;
-    updateH2PresetVisibility(profile);
-    if (profile.endsWith('-h2')) loadH2PresetSelection();
+    const parsed = parseProfile(profile);
+    currentServer = parsed.server;
+    currentProtocol = parsed.protocol;
+    
+    // Update UI
+    serverSelector.value = currentServer;
+    updateProtocolTabs(currentProtocol);
+    updateH2PresetVisibility(currentProtocol);
+    
+    if (currentProtocol === 'h2') loadH2PresetSelection();
   } catch (e) {
     console.error('Failed to load profile:', e);
   }
 }
 
-function updateH2PresetVisibility(profile: string) {
+function updateProtocolTabs(protocol: 'h2' | 'stls') {
+  protocolTabs.forEach(tab => {
+    const tabProtocol = (tab as HTMLElement).dataset.protocol;
+    tab.classList.toggle('active', tabProtocol === protocol);
+  });
+}
+
+function updateH2PresetVisibility(protocol: 'h2' | 'stls') {
   const h2Sel = document.getElementById('h2-preset-selector');
-  if (h2Sel) h2Sel.style.display = profile.endsWith('-h2') ? 'block' : 'none';
+  if (h2Sel) h2Sel.style.display = protocol === 'h2' ? 'block' : 'none';
 }
 
 async function loadH2PresetSelection() {
@@ -329,16 +370,37 @@ btnLog.addEventListener('click', () => showView('log'));
 btnBackFromLog.addEventListener('click', () => showView('main'));
 btnRefreshLog.addEventListener('click', refreshLog);
 
-profileSelector.addEventListener('change', async () => {
+// ── Server selector handler ──────────────────────────────────
+serverSelector.addEventListener('change', async () => {
+  currentServer = serverSelector.value;
   try {
-    await invoke('set_profile', { profile: profileSelector.value });
-    updateH2PresetVisibility(profileSelector.value);
-    if (profileSelector.value.endsWith('-h2')) loadH2PresetSelection();
+    await invoke('set_profile', { profile: getProfileName() });
     await updateStatus();
-    showMessage('Profile changed', false);
+    showMessage('Server changed', false);
   } catch (e) {
     showMessage(`Failed: ${e}`, true);
   }
+});
+
+// ── Protocol tabs handler ────────────────────────────────────
+protocolTabs.forEach(tab => {
+  tab.addEventListener('click', async () => {
+    const protocol = (tab as HTMLElement).dataset.protocol as 'h2' | 'stls';
+    if (protocol === currentProtocol) return;
+    
+    currentProtocol = protocol;
+    updateProtocolTabs(protocol);
+    updateH2PresetVisibility(protocol);
+    
+    try {
+      await invoke('set_profile', { profile: getProfileName() });
+      if (protocol === 'h2') loadH2PresetSelection();
+      await updateStatus();
+      showMessage('Protocol changed', false);
+    } catch (e) {
+      showMessage(`Failed: ${e}`, true);
+    }
+  });
 });
 
 document.getElementById('h2-preset-dropdown')?.addEventListener('change', async (e) => {

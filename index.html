@@ -13,15 +13,22 @@
         <h1>shado v5</h1>
         <p class="subtitle">ShadowTLS + Hysteria2 VPN</p>
 
-        <div class="profile-bar-main" style="margin-bottom: 10px;">
-          <select id="profile-selector" style="flex:1;padding:8px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:6px;font-size:13px;">
-            <option value="germany-1-h2">Germany #1 - Hysteria2</option>
-            <option value="finland-1-h2">Finland #1 - Hysteria2</option>
-            <option value="germany-1-stls">Germany #1 - ShadowTLS</option>
-            <option value="finland-1-stls">Finland #1 - ShadowTLS</option>
-          </select>
-          <button id="btn-settings-toggle" class="btn-small">Settings</button>
-          <button id="btn-main-log" class="btn-small">Log</button>
+        <!-- App Header: Server + Protocol Selection -->
+        <div class="app-header">
+          <div class="profile-bar-main" style="margin-bottom: 10px;">
+            <select id="server-selector" style="flex:1;padding:8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              <option value="germany-1">Germany #1</option>
+              <option value="finland-1">Finland #1</option>
+            </select>
+            <button id="btn-settings-toggle" class="btn-small">Settings</button>
+            <button id="btn-main-log" class="btn-small">Log</button>
+          </div>
+
+          <!-- Protocol Tabs -->
+          <div class="protocol-tabs">
+            <button class="tab active" data-protocol="h2">Hysteria2</button>
+            <button class="tab" data-protocol="stls">ShadowTLS</button>
+          </div>
         </div>
 
         <!-- Settings Panel (collapsible) -->
