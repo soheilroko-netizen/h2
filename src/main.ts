@@ -55,12 +55,10 @@ const btnLog = document.getElementById('btn-main-log')!;
 
 // Views
 const mainView = document.getElementById('main-view')!;
-const settingsView = document.getElementById('settings-view')!;
 const logView = document.getElementById('log-view')!;
 const logContent = document.getElementById('log-content')!;
 const btnRefreshLog = document.getElementById('btn-refresh-log')!;
 const btnBackFromLog = document.getElementById('btn-back-from-log')!;
-const btnBackFromSettings = document.getElementById('btn-back-from-settings')!;
 
 // ── Helpers ──────────────────────────────────────────────────
 function formatBytes(bytes: number): string {
@@ -95,11 +93,9 @@ function clearMessage() {
 }
 
 // ── Views ────────────────────────────────────────────────────
-function showView(view: 'main' | 'settings' | 'log') {
+function showView(view: 'main' | 'log') {
   mainView.style.display = view === 'main' ? 'block' : 'none';
-  settingsView.style.display = view === 'settings' ? 'block' : 'none';
   logView.style.display = view === 'log' ? 'block' : 'none';
-  if (view === 'settings') loadSettingsForm();
   if (view === 'log') refreshLog();
 }
 
@@ -199,36 +195,6 @@ async function refreshLog() {
 }
 
 // ── Settings form ────────────────────────────────────────────
-async function loadSettingsForm() {
-  try {
-    const config = await invoke<Config>('get_config');
-    (document.getElementById('cfg-server-address') as HTMLInputElement).value = config.server_address;
-    (document.getElementById('cfg-stls-port') as HTMLInputElement).value = String(config.stls_port);
-    (document.getElementById('cfg-stls-password') as HTMLInputElement).value = config.stls_password;
-    (document.getElementById('cfg-stls-sni') as HTMLInputElement).value = config.stls_sni;
-    (document.getElementById('cfg-ss-port') as HTMLInputElement).value = String(config.ss_port);
-    (document.getElementById('cfg-ss-password') as HTMLInputElement).value = config.ss_password;
-    (document.getElementById('cfg-socks5-port') as HTMLInputElement).value = String(config.socks5_port);
-    (document.getElementById('cfg-h2-port') as HTMLInputElement).value = String(config.h2_port);
-    (document.getElementById('cfg-h2-password') as HTMLInputElement).value = config.h2_password;
-    (document.getElementById('cfg-h2-sni') as HTMLInputElement).value = config.h2_sni;
-    (document.getElementById('cfg-h2-insecure') as HTMLInputElement).checked = config.h2_insecure;
-    (document.getElementById('cfg-h2-obfs') as HTMLInputElement).value = config.h2_obfs;
-    (document.getElementById('cfg-h2-obfs-password') as HTMLInputElement).value = config.h2_obfs_password;
-    (document.getElementById('cfg-h2-mport') as HTMLInputElement).value = config.h2_mport;
-    const rules = (config.split_rules || []).map(r => r.pattern).join('\n');
-    (document.getElementById('cfg-split-domains') as HTMLTextAreaElement).value = rules;
-  } catch (e) {
-    showSettingsMessage(`Failed: ${e}`, true);
-  }
-}
-
-function showSettingsMessage(msg: string, isError = false) {
-  const el = document.getElementById('settings-message')!;
-  el.textContent = msg;
-  el.className = `message ${isError ? 'error' : 'success'}`;
-}
-
 // ── Events ───────────────────────────────────────────────────
 listen('proxy-log', (event: { payload: string }) => {
   if (logView.style.display !== 'none') {
@@ -264,16 +230,16 @@ btnStop.addEventListener('click', async () => {
   }
 });
 
-btnSettings.addEventListener('click', () => showView('settings'));
+btnSettings.addEventListener('click', async () => {
+  try {
+    await invoke('open_settings_window');
+  } catch (e) {
+    showMessage('Failed to open settings: ' + e, true);
+  }
+});
 btnLog.addEventListener('click', () => showView('log'));
 btnBackFromLog.addEventListener('click', () => showView('main'));
 btnRefreshLog.addEventListener('click', refreshLog);
-btnBackFromSettings.addEventListener('click', () => showView('main'));
-
-// Settings save button — no-op (baked configs)
-document.getElementById('btn-save-config')?.addEventListener('click', () => {
-  showSettingsMessage('Configs are baked-in. Settings are read-only for now.');
-});
 
 // ── Mode toggle ───────────────────────────────────────────────
 async function loadModeToggle() {
