@@ -134,12 +134,16 @@ fn update_tray_state(app: &tauri::AppHandle) {
 
 #[tauri::command]
 fn start_proxy(app: tauri::AppHandle, state: State<AppState>) -> Result<String, String> {
+    start_proxy_inner(&app, &state)
+}
+
+fn start_proxy_inner(app: &tauri::AppHandle, state: &State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
     let result = proxy.start().map_err(|e| e.to_string())?;
     *state.started_at.lock().unwrap() = Some(Instant::now());
     *state.is_running_cache.lock().unwrap() = proxy.is_running();
     drop(proxy);
-    update_tray_state(&app);
+    update_tray_state(app);
     Ok(result)
 }
 
@@ -355,13 +359,13 @@ fn get_h2_speeds() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn update_settings(socks5_port: u16, mtu: Option<u32>, split_rules: Vec<serde_json::Value>) -> Result<(), String> {
+fn update_settings(_socks5_port: u16, _mtu: Option<u32>, _split_rules: Vec<serde_json::Value>) -> Result<(), String> {
     // Settings stored per-profile would require more config refactoring
     // For now, just validate and return OK (split tunneling will be implemented later)
-    if socks5_port < 1024 || socks5_port > 65535 {
+    if _socks5_port < 1024 || _socks5_port > 65535 {
         return Err("Invalid SOCKS5 port".into());
     }
-    if let Some(m) = mtu {
+    if let Some(m) = _mtu {
         if m < 576 || m > 9000 {
             return Err("MTU must be between 576 and 9000".into());
         }
