@@ -328,10 +328,11 @@ impl ProxyManager {
             let mut h2 = serde_json::json!({
                 "type": "hysteria2", "tag": "h2-out",
                 "server": c.server_address,
-                "server_port": c.h2_port,
+                "server_ports": [format!("{}:{}", c.h2_port, c.h2_port + 5000)],
+                "hop_interval": "30s",
                 "up_mbps": c.h2_up_mbps,
                 "down_mbps": c.h2_down_mbps,
-                "password": c.h2_password,
+                "password": format!("testuser1:{}", c.h2_password),
                 "tls": {"enabled": true, "server_name": c.h2_sni, "insecure": c.h2_insecure}
             });
             if !c.h2_obfs.is_empty() {
