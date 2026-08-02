@@ -55,8 +55,9 @@ const statusAddress = document.getElementById('status-address')!;
 // Metrics elements
 const pingValue = document.getElementById('ping-value')!;
 const uptimeValue = document.getElementById('uptime-value')!;
-const trafficValue = document.getElementById('traffic-value')!;
-const totalTrafficValue = document.getElementById('total-traffic-value')!;
+const trafficUpValue = document.getElementById('traffic-up-value')!;
+const trafficDownValue = document.getElementById('traffic-down-value')!;
+const splitIndicator = document.getElementById('split-indicator')!;
 
 // Controls elements
 const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
@@ -180,13 +181,8 @@ async function updateStatus() {
     uptimeStartSecs = s.uptime_secs;
     uptimeValue.textContent = formatUptime(s.uptime_secs);
 
-    trafficValue.textContent = s.running
-      ? `↑ ${formatSpeed(s.traffic_up)}  ↓ ${formatSpeed(s.traffic_down)}`
-      : '↑ 0 B/s  ↓ 0 B/s';
-
-    totalTrafficValue.textContent = s.running
-      ? `↑ ${formatBytes(s.total_up)}  ↓ ${formatBytes(s.total_down)}`
-      : '↑ 0 B  ↓ 0 B';
+    trafficUpValue.textContent = s.running ? formatSpeed(s.traffic_up) : '0 B/s';
+    trafficDownValue.textContent = s.running ? formatSpeed(s.traffic_down) : '0 B/s';
 
     btnStart.disabled = s.running;
     btnStop.disabled = !s.running;
@@ -283,6 +279,9 @@ async function loadSettings() {
     settingMtu.value = cfg.mtu ? String(cfg.mtu) : '';
     settingSplitRules.value = cfg.split_rules?.map(r => r.pattern).join('\n') || '';
     
+    // Update split indicator
+    updateSplitIndicator(cfg.split_mode || 'full');
+    
     // Trigger split mode change to show/hide elements
     const mode = settingSplitMode.value;
     customRulesContainer.style.display = mode === 'custom' ? 'block' : 'none';
@@ -292,11 +291,23 @@ async function loadSettings() {
   }
 }
 
+function updateSplitIndicator(splitMode: string) {
+  const isActive = splitMode !== 'full';
+  splitIndicator.classList.toggle('active', isActive);
+  
+  let tooltipText = 'Full tunnel';
+  if (splitMode === 'iran') tooltipText = 'Split tunnel: Iran Direct';
+  else if (splitMode === 'custom') tooltipText = 'Split tunnel: Custom rules';
+  
+  splitIndicator.setAttribute('title', tooltipText);
+}
+
 // ── Settings panel toggle & split mode handling ─────────────
 settingSplitMode.addEventListener('change', () => {
   const mode = settingSplitMode.value;
   customRulesContainer.style.display = mode === 'custom' ? 'block' : 'none';
   btnUpdateGeofiles.style.display = mode === 'iran' ? 'inline-block' : 'none';
+  updateSplitIndicator(mode);
 });
 
 btnSettingsToggle.addEventListener('click', () => {

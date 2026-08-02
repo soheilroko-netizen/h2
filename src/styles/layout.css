@@ -94,24 +94,69 @@
   color: var(--text-secondary);
 }
 
-/* ── Server Info / Metrics ───────────────────────────────── */
+/* ── Metrics Grid ────────────────────────────────────────── */
 
-.server-info {
-  background: var(--bg-card);
-  border-radius: 12px;
-  padding: 12px 16px;
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-sm);
   margin-bottom: var(--spacing-lg);
+}
+
+.metric-tile {
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: var(--spacing-md);
+  text-align: center;
   border: 1px solid var(--border);
+  transition: background 0.2s;
 }
 
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 6px 0;
+.metric-tile:hover {
+  background: var(--bg-tertiary);
 }
 
-.info-row:not(:last-child) {
-  border-bottom: 1px solid var(--border);
+.metric-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  transition: opacity 0.2s;
+}
+
+.metric-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+/* ── Split Tunnel Indicator ──────────────────────────────── */
+
+.split-indicator {
+  width: 20px;
+  height: 20px;
+  margin-left: 8px;
+  opacity: 0.4;
+  color: var(--text-secondary);
+  transition: all 0.3s;
+  cursor: help;
+}
+
+.split-indicator.active {
+  opacity: 1;
+  color: var(--accent-h2);
+  filter: drop-shadow(0 0 6px var(--accent-h2));
+  animation: pulse-split 2s ease-in-out infinite;
+}
+
+@keyframes pulse-split {
+  0%, 100% { 
+    filter: drop-shadow(0 0 4px var(--accent-h2)); 
+  }
+  50% { 
+    filter: drop-shadow(0 0 10px var(--accent-h2)); 
+  }
 }
 
 /* ── Controls Section ────────────────────────────────────── */

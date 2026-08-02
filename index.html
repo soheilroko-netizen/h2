@@ -72,28 +72,36 @@
           </div>
         </div>
 
+        <!-- Status Banner -->
         <div class="status-card">
           <div class="status-indicator" id="status-dot"></div>
           <span id="status-text">Disconnected</span>
           <span class="status-address" id="status-address"></span>
+          
+          <!-- Split Tunnel Indicator -->
+          <svg class="split-indicator" id="split-indicator" viewBox="0 0 24 24" title="Full tunnel">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path class="split-path" d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
         </div>
 
-        <div class="server-info">
-          <div class="info-row">
-            <span class="label">Ping:</span>
-            <span class="value" id="ping-value">-</span>
+        <!-- Metrics Grid -->
+        <div class="metrics-grid">
+          <div class="metric-tile">
+            <div class="metric-value" id="ping-value">-</div>
+            <div class="metric-label">Ping</div>
           </div>
-          <div class="info-row">
-            <span class="label">Uptime:</span>
-            <span class="value" id="uptime-value">-</span>
+          <div class="metric-tile">
+            <div class="metric-value" id="uptime-value">-</div>
+            <div class="metric-label">Uptime</div>
           </div>
-          <div class="info-row">
-            <span class="label">Current:</span>
-            <span class="value" id="traffic-value">↑ 0 B/s  ↓ 0 B/s</span>
+          <div class="metric-tile">
+            <div class="metric-value" id="traffic-up-value">0 B/s</div>
+            <div class="metric-label">↑ Upload</div>
           </div>
-          <div class="info-row">
-            <span class="label">Total:</span>
-            <span class="value" id="total-traffic-value">↑ 0 B  ↓ 0 B</span>
+          <div class="metric-tile">
+            <div class="metric-value" id="traffic-down-value">0 B/s</div>
+            <div class="metric-label">↓ Download</div>
           </div>
         </div>
 
