@@ -436,9 +436,9 @@ fn list_profiles() -> Result<Vec<String>, String> {
 
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-        .title("dakal-tls v5")
-        .inner_size(500.0, 624.0)
-        .resizable(true)
+        .title("dakal")
+        .inner_size(500.0, 680.0)
+        .resizable(false)
         .build()?;
     Ok(())
 }
