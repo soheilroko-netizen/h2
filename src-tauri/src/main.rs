@@ -387,7 +387,7 @@ fn set_profile(app: tauri::AppHandle, state: State<AppState>, profile: String) -
     let running = state.proxy.lock().unwrap().is_running();
     if running {
         stop_proxy_inner(&state)?;
-        start_proxy_inner(&state)?;
+        start_proxy_inner(&app, &state)?;
     }
     
     update_tray_state(&app);
