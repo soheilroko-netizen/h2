@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import './styles.css';
 
 // ── Types ────────────────────────────────────────────────────
@@ -386,10 +387,18 @@ settingSplitMode.addEventListener('change', () => {
   updateSplitIndicator(mode);
 });
 
-btnSettingsToggle.addEventListener('click', () => {
+btnSettingsToggle.addEventListener('click', async () => {
   const visible = settingsPanel.style.display !== 'none';
   settingsPanel.style.display = visible ? 'none' : 'block';
-  if (!visible) loadSettings();
+  
+  // Resize window
+  const appWindow = getCurrentWindow();
+  if (visible) {
+    await appWindow.setSize(new LogicalSize(500, 680));
+  } else {
+    await appWindow.setSize(new LogicalSize(500, 900));
+    loadSettings();
+  }
 });
 
 btnSaveSettings.addEventListener('click', async () => {

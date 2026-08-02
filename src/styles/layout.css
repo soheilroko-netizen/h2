@@ -80,18 +80,20 @@
   gap: 10px;
   margin-bottom: var(--spacing-lg);
   border: 1px solid var(--border);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
   backdrop-filter: blur(10px);
-  position: relative;
-  transition: border-color 0.3s;
+  background: rgba(15, 52, 96, 0.6);
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 
 .status-card.protocol-h2 {
   border-color: var(--accent-h2);
+  box-shadow: 0 4px 12px rgba(0, 180, 216, 0.2);
 }
 
 .status-card.protocol-stls {
   border-color: var(--accent-stls);
+  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
 }
 
 .status-card::before {
@@ -134,15 +136,16 @@
   padding: var(--spacing-md);
   text-align: center;
   border: 1px solid var(--border);
-  transition: background 0.2s, transform 0.2s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  position: relative;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+  background: rgba(15, 52, 96, 0.4);
 }
 
 .metric-tile:hover {
-  background: var(--bg-tertiary);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
+  background: rgba(15, 52, 96, 0.6);
 }
 
 .metric-value {
@@ -150,7 +153,15 @@
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 4px;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
+  min-width: 80px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-value.updating {
+  opacity: 0.6;
+  transform: scale(0.98);
 }
 
 .sparkline {
