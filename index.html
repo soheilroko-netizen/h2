@@ -23,12 +23,15 @@
           <button id="btn-main-log" class="btn-small">Log</button>
         </div>
 
-        <div id="h2-speed-display" style="display:none;margin:6px 0;padding:6px 8px;background:#1a1a2e;border-radius:6px;border:1px solid #333;font-size:11px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="color:#888">H2 Speed:</span>
-            <span>↑ <span id="h2-up-display">8</span> MBps</span>
-            <span>↓ <span id="h2-down-display">24</span> MBps</span>
-            <button id="btn-main-speedtest" class="btn-small" style="margin-left:auto;font-size:10px">Speed Test</button>
+        <div id="h2-preset-selector" style="display:none;margin:6px 0;padding:8px;background:#1a1a2e;border-radius:6px;border:1px solid #333;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="color:#888;font-size:11px;">H2 Preset:</label>
+            <select id="h2-preset-dropdown" style="flex:1;padding:4px 8px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:4px;font-size:11px;">
+              <option value="adsl">ADSL (↑4 / ↓16 Mbps)</option>
+              <option value="4g">4G (↑15 / ↓30 Mbps)</option>
+              <option value="5g" selected>5G/Fiber (↑40 / ↓80 Mbps)</option>
+              <option value="max">Max (↑80 / ↓120 Mbps)</option>
+            </select>
           </div>
         </div>
 
@@ -136,20 +139,6 @@
         <div class="form-group">
           <label>Hysteria2 Multiport Range</label>
           <input type="text" id="cfg-h2-mport" placeholder="40001-45000" />
-        </div>
-
-        <div class="form-group">
-          <label>Upload / Download Speed (MBps)</label>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="number" id="cfg-h2-up-mbps" placeholder="8" style="width:60px" />
-            <span>↑</span>
-            <input type="number" id="cfg-h2-down-mbps" placeholder="24" style="width:60px" />
-            <span>↓</span>
-            <label style="display:flex;align-items:center;gap:4px;margin:0">
-              <input type="checkbox" id="cfg-h2-auto" /> Auto
-            </label>
-            <button type="button" id="btn-auto-tune" class="btn btn-secondary" style="font-size:11px;padding:4px 8px">Speed Test</button>
-          </div>
         </div>
 
         <div class="form-group">

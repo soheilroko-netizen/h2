@@ -324,29 +324,16 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn auto_tune_speedtest(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    // Stop VPN first so speed test runs on raw connection
-    let was_running = state.proxy.lock().unwrap().is_running();
-    if was_running {
-        let _ = stop_proxy_inner(&state);
-    }
-
-    let (up_mbps, down_mbps) = proxy::run_speedtest().map_err(|e| e.to_string())?;
-    config::save_h2_speeds(up_mbps, down_mbps).map_err(|e| e.to_string())?;
-
-    Ok(serde_json::json!({
-        "up_mbps": up_mbps,
-        "down_mbps": down_mbps,
-    }))
-}
-
-#[tauri::command]
-fn get_h2_speeds() -> Result<serde_json::Value, String> {
-    let (up, down) = config::load_h2_speeds();
-    Ok(serde_json::json!({
-        "up_mbps": up,
-        "down_mbps": down,
-    }))
+fn apply_h2_preset(name: String) -> Result<serde_json::Value, String> {
+    let (up, down) = match name.as_str() {
+        "adsl" => (4, 16),
+        "4g" => (15, 30),
+        "5g" => (40, 80),
+        "max" => (80, 120),
+        _ => return Err(format!("unknown preset: {}", name)),
+    };
+    config::save_h2_speeds(up, down).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "up_mbps": up, "down_mbps": down }))
 }
 
 #[tauri::command]
@@ -368,7 +355,7 @@ fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .title("dakal-tls v5")
-        .inner_size(500.0, 520.0)
+        .inner_size(500.0, 624.0)
         .resizable(true)
         .build()?;
     Ok(())
@@ -522,8 +509,8 @@ fn main() {
             get_full_status,
             get_log,
             open_settings_window,
-            auto_tune_speedtest,
             get_h2_speeds,
+            apply_h2_preset,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");

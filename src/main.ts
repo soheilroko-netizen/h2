@@ -126,12 +126,33 @@ function stopPingLoop() {
   pingTimer = null;
 }
 
-// ── Status update (every 1s) ─────────────────────────────────
+// ── Status update (every 2s) ─────────────────────────────────
 let lastPid: number | null = null;
+let uptimeStartSecs: number | null = null;
+let uptimeTimer: ReturnType<typeof setInterval> | null = null;
+
+function startUptimeTimer() {
+  stopUptimeTimer();
+  uptimeTimer = setInterval(() => {
+    if (uptimeStartSecs !== null) {
+      const elapsed = uptimeStartSecs + Math.floor((Date.now() - uptimeRefresh) / 1000);
+      uptimeValue.textContent = formatUptime(elapsed);
+    }
+  }, 1000);
+}
+
+function stopUptimeTimer() {
+  if (uptimeTimer) clearInterval(uptimeTimer);
+  uptimeTimer = null;
+  uptimeStartSecs = null;
+}
+
+let uptimeRefresh = Date.now();
 
 async function updateStatus() {
   try {
     const s = await invoke<FullStatus>('get_full_status');
+    uptimeRefresh = Date.now();
 
     statusText.textContent = s.running ? 'Connected' : 'Disconnected';
     statusDot.classList.toggle('connected', s.running);
@@ -139,6 +160,7 @@ async function updateStatus() {
 
     if (!s.running) pingValue.textContent = '-';
 
+    uptimeStartSecs = s.uptime_secs;
     uptimeValue.textContent = formatUptime(s.uptime_secs);
 
     trafficValue.textContent = s.running
@@ -154,8 +176,10 @@ async function updateStatus() {
 
     if (s.running && s.pid !== lastPid) {
       startPingLoop();
+      startUptimeTimer();
     } else if (!s.running) {
       stopPingLoop();
+      stopUptimeTimer();
     }
     lastPid = s.pid ?? null;
 
@@ -192,9 +216,6 @@ async function loadSettingsForm() {
     (document.getElementById('cfg-h2-obfs') as HTMLInputElement).value = config.h2_obfs;
     (document.getElementById('cfg-h2-obfs-password') as HTMLInputElement).value = config.h2_obfs_password;
     (document.getElementById('cfg-h2-mport') as HTMLInputElement).value = config.h2_mport;
-    (document.getElementById('cfg-h2-up-mbps') as HTMLInputElement).value = String(config.h2_up_mbps);
-    (document.getElementById('cfg-h2-down-mbps') as HTMLInputElement).value = String(config.h2_down_mbps);
-    (document.getElementById('cfg-h2-auto') as HTMLInputElement).checked = config.h2_auto;
     const rules = (config.split_rules || []).map(r => r.pattern).join('\n');
     (document.getElementById('cfg-split-domains') as HTMLTextAreaElement).value = rules;
   } catch (e) {
@@ -254,44 +275,6 @@ document.getElementById('btn-save-config')?.addEventListener('click', () => {
   showSettingsMessage('Configs are baked-in. Settings are read-only for now.');
 });
 
-// ── Auto-tune speed test (settings page) ─────────────────────
-document.getElementById('btn-auto-tune')?.addEventListener('click', async () => {
-  const btn = document.getElementById('btn-auto-tune') as HTMLButtonElement;
-  btn.disabled = true;
-  btn.textContent = 'Testing...';
-  showSettingsMessage('Running speed test (2 runs)...');
-  try {
-    const result = await invoke<{ up_mbps: number; down_mbps: number }>('auto_tune_speedtest');
-    (document.getElementById('cfg-h2-up-mbps') as HTMLInputElement).value = String(result.up_mbps);
-    (document.getElementById('cfg-h2-down-mbps') as HTMLInputElement).value = String(result.down_mbps);
-    showSettingsMessage(`Done: ↑ ${result.up_mbps} MBps  ↓ ${result.down_mbps} MBps`);
-  } catch (e: any) {
-    showSettingsMessage(`Speed test failed: ${e}`, true);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Speed Test';
-  }
-});
-
-// ── Main window speed test button ────────────────────────────
-document.getElementById('btn-main-speedtest')?.addEventListener('click', async () => {
-  const btn = document.getElementById('btn-main-speedtest') as HTMLButtonElement;
-  btn.disabled = true;
-  btn.textContent = 'Testing...';
-  try {
-    const result = await invoke<{ up_mbps: number; down_mbps: number }>('auto_tune_speedtest');
-    const upEl = document.getElementById('h2-up-display');
-    const downEl = document.getElementById('h2-down-display');
-    if (upEl) upEl.textContent = String(result.up_mbps);
-    if (downEl) downEl.textContent = String(result.down_mbps);
-  } catch (e: any) {
-    showMessage(`Speed test failed: ${e}`, true);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Speed Test';
-  }
-});
-
 // ── Mode toggle ───────────────────────────────────────────────
 async function loadModeToggle() {
   try {
@@ -308,19 +291,23 @@ function updateModeToggleUI(mode: string) {
   if (!stlsBtn || !h2Btn) return;
   stlsBtn.classList.toggle('active', mode === 'shadowtls');
   h2Btn.classList.toggle('active', mode === 'hysteria2');
-  // Show/hide h2 speed display
-  const h2Disp = document.getElementById('h2-speed-display');
-  if (h2Disp) h2Disp.style.display = mode === 'hysteria2' ? 'block' : 'none';
-  if (mode === 'hysteria2') loadH2SpeedsDisplay();
+  // Show/hide h2 preset selector
+  const h2Sel = document.getElementById('h2-preset-selector');
+  if (h2Sel) h2Sel.style.display = mode === 'hysteria2' ? 'block' : 'none';
+  if (mode === 'hysteria2') loadH2PresetSelection();
 }
 
-async function loadH2SpeedsDisplay() {
+async function loadH2PresetSelection() {
   try {
     const s = await invoke<{ up_mbps: number; down_mbps: number }>('get_h2_speeds');
-    const upEl = document.getElementById('h2-up-display');
-    const downEl = document.getElementById('h2-down-display');
-    if (upEl) upEl.textContent = String(s.up_mbps);
-    if (downEl) downEl.textContent = String(s.down_mbps);
+    const dropdown = document.getElementById('h2-preset-dropdown') as HTMLSelectElement;
+    if (!dropdown) return;
+    // Match current speeds to preset
+    const { up_mbps, down_mbps } = s;
+    if (up_mbps === 4 && down_mbps === 16) dropdown.value = 'adsl';
+    else if (up_mbps === 15 && down_mbps === 30) dropdown.value = '4g';
+    else if (up_mbps === 40 && down_mbps === 80) dropdown.value = '5g';
+    else if (up_mbps === 80 && down_mbps === 120) dropdown.value = 'max';
   } catch (e) { /* silent */ }
 }
 
@@ -339,6 +326,16 @@ document.getElementById('mode-h2')?.addEventListener('click', async () => {
     await invoke('set_mode', { mode: 'hysteria2' });
     updateModeToggleUI('hysteria2');
     await updateStatus();
+  } catch (e) {
+    showMessage(`Failed: ${e}`, true);
+  }
+});
+
+document.getElementById('h2-preset-dropdown')?.addEventListener('change', async (e) => {
+  const target = e.target as HTMLSelectElement;
+  try {
+    await invoke('apply_h2_preset', { name: target.value });
+    showMessage('Preset applied', false);
   } catch (e) {
     showMessage(`Failed: ${e}`, true);
   }
