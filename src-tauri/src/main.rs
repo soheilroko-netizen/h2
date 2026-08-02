@@ -78,10 +78,20 @@ fn update_tray_state(app: &tauri::AppHandle) {
     drop(state);
 
     let profile = config::load_profile();
-    let mode = if profile.ends_with("-h2") { "hysteria2" } else { "shadowtls" };
+    
+    // Parse profile: "germany-1-h2" -> server="Germany #1", protocol="Hysteria2"
+    let (server_name, protocol_name) = if profile.starts_with("germany") {
+        let proto = if profile.ends_with("-h2") { "Hysteria2" } else { "ShadowTLS" };
+        ("Germany #1", proto)
+    } else if profile.starts_with("finland") {
+        let proto = if profile.ends_with("-h2") { "Hysteria2" } else { "ShadowTLS" };
+        ("Finland #1", proto)
+    } else {
+        ("Unknown", "Unknown")
+    };
 
     let tooltip = if running {
-        format!("dakal-tls VPN — {} (connected)", mode)
+        format!("dakal-tls — {} | {} (connected)", server_name, protocol_name)
     } else {
         "dakal-tls VPN".to_string()
     };
@@ -89,7 +99,11 @@ fn update_tray_state(app: &tauri::AppHandle) {
     let show = MenuItemBuilder::with_id("show", "Show").build(app).unwrap();
     let hide = MenuItemBuilder::with_id("hide", "Hide").build(app).unwrap();
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app).unwrap();
-    let mode_item = MenuItemBuilder::with_id("mode", &mode)
+    let server_item = MenuItemBuilder::with_id("server", server_name)
+        .enabled(false)
+        .build(app)
+        .unwrap();
+    let protocol_item = MenuItemBuilder::with_id("protocol", protocol_name)
         .enabled(false)
         .build(app)
         .unwrap();
@@ -99,7 +113,8 @@ fn update_tray_state(app: &tauri::AppHandle) {
             .build(app)
             .unwrap();
         MenuBuilder::new(app)
-            .item(&mode_item)
+            .item(&server_item)
+            .item(&protocol_item)
             .item(&disc)
             .separator()
             .item(&show)
@@ -113,7 +128,8 @@ fn update_tray_state(app: &tauri::AppHandle) {
             .build(app)
             .unwrap();
         MenuBuilder::new(app)
-            .item(&mode_item)
+            .item(&server_item)
+            .item(&protocol_item)
             .item(&conn)
             .separator()
             .item(&show)
