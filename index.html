@@ -15,12 +15,35 @@
 
         <div class="profile-bar-main" style="margin-bottom: 10px;">
           <select id="profile-selector" style="flex:1;padding:8px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:6px;font-size:13px;">
-            <option value="germany-1-stls">Germany #1 - ShadowTLS</option>
             <option value="germany-1-h2">Germany #1 - Hysteria2</option>
-            <option value="finland-1-stls">Finland #1 - ShadowTLS</option>
             <option value="finland-1-h2">Finland #1 - Hysteria2</option>
+            <option value="germany-1-stls">Germany #1 - ShadowTLS</option>
+            <option value="finland-1-stls">Finland #1 - ShadowTLS</option>
           </select>
+          <button id="btn-settings-toggle" class="btn-small">Settings</button>
           <button id="btn-main-log" class="btn-small">Log</button>
+        </div>
+
+        <!-- Settings Panel (collapsible) -->
+        <div id="settings-panel" style="display:none;margin-bottom:10px;padding:12px;background:#1a1a2e;border-radius:6px;border:1px solid #333;">
+          <h3 style="margin:0 0 8px;color:#fff;font-size:14px;">Settings</h3>
+          
+          <div style="margin-bottom:8px;">
+            <label style="display:block;color:#888;font-size:11px;margin-bottom:4px;">SOCKS5 Port</label>
+            <input type="number" id="setting-socks5-port" value="1080" style="width:100%;padding:6px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:4px;font-size:12px;" />
+          </div>
+
+          <div style="margin-bottom:8px;">
+            <label style="display:block;color:#888;font-size:11px;margin-bottom:4px;">MTU (optional, default: auto)</label>
+            <input type="number" id="setting-mtu" placeholder="1400" style="width:100%;padding:6px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:4px;font-size:12px;" />
+          </div>
+
+          <div style="margin-bottom:8px;">
+            <label style="display:block;color:#888;font-size:11px;margin-bottom:4px;">Split Tunnel Rules (one per line, domain or process)</label>
+            <textarea id="setting-split-rules" placeholder="example.com&#10;chrome.exe" rows="3" style="width:100%;padding:6px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:4px;font-size:11px;font-family:monospace;resize:vertical;"></textarea>
+          </div>
+
+          <button id="btn-save-settings" class="btn btn-secondary" style="width:100%;padding:6px;font-size:12px;">Save Settings</button>
         </div>
 
         <div id="h2-preset-selector" style="display:none;margin:6px 0;padding:8px;background:#1a1a2e;border-radius:6px;border:1px solid #333;">

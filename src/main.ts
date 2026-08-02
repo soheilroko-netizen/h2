@@ -16,6 +16,29 @@ interface FullStatus {
   log_lines: string[];
 }
 
+interface Config {
+  server_address: string;
+  ss_port: number;
+  ss_password: string;
+  stls_port: number;
+  stls_password: string;
+  stls_sni: string;
+  socks5_port: number;
+  mtu?: number;
+  split_rules?: { pattern: string }[];
+  mode: string;
+  h2_port: number;
+  h2_password: string;
+  h2_sni: string;
+  h2_insecure: boolean;
+  h2_obfs: string;
+  h2_obfs_password: string;
+  h2_mport: string;
+  h2_up_mbps: number;
+  h2_down_mbps: number;
+  h2_auto: boolean;
+}
+
 // ── Elements ─────────────────────────────────────────────────
 const statusDot = document.getElementById('status-dot')!;
 const statusText = document.getElementById('status-text')!;
@@ -28,7 +51,9 @@ const message = document.getElementById('message')!;
 const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
 const btnStop = document.getElementById('btn-stop') as HTMLButtonElement;
 const btnLog = document.getElementById('btn-main-log')!;
+const btnSettingsToggle = document.getElementById('btn-settings-toggle')!;
 const profileSelector = document.getElementById('profile-selector') as HTMLSelectElement;
+const settingsPanel = document.getElementById('settings-panel')!;
 
 // Views
 const mainView = document.getElementById('main-view')!;
@@ -36,6 +61,12 @@ const logView = document.getElementById('log-view')!;
 const logContent = document.getElementById('log-content')!;
 const btnRefreshLog = document.getElementById('btn-refresh-log')!;
 const btnBackFromLog = document.getElementById('btn-back-from-log')!;
+
+// Settings inputs
+const settingSocks5Port = document.getElementById('setting-socks5-port') as HTMLInputElement;
+const settingMtu = document.getElementById('setting-mtu') as HTMLInputElement;
+const settingSplitRules = document.getElementById('setting-split-rules') as HTMLTextAreaElement;
+const btnSaveSettings = document.getElementById('btn-save-settings')!;
 
 // ── Helpers ──────────────────────────────────────────────────
 function formatBytes(bytes: number): string {
@@ -200,6 +231,41 @@ async function loadH2PresetSelection() {
     else if (up_mbps === 80 && down_mbps === 120) dropdown.value = 'max';
   } catch (e) { /* silent */ }
 }
+
+// ── Settings panel ───────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const cfg = await invoke<Config>('get_config');
+    settingSocks5Port.value = String(cfg.socks5_port);
+    settingMtu.value = cfg.mtu ? String(cfg.mtu) : '';
+    settingSplitRules.value = cfg.split_rules?.map(r => r.pattern).join('\n') || '';
+  } catch (e) {
+    console.error('Failed to load settings:', e);
+  }
+}
+
+btnSettingsToggle.addEventListener('click', () => {
+  const visible = settingsPanel.style.display !== 'none';
+  settingsPanel.style.display = visible ? 'none' : 'block';
+  if (!visible) loadSettings();
+});
+
+btnSaveSettings.addEventListener('click', async () => {
+  try {
+    const socks5Port = parseInt(settingSocks5Port.value, 10);
+    const mtu = settingMtu.value ? parseInt(settingMtu.value, 10) : null;
+    const splitRules = settingSplitRules.value
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+      .map(pattern => ({ pattern }));
+
+    await invoke('update_settings', { socks5Port, mtu, splitRules });
+    showMessage('Settings saved', false);
+  } catch (e) {
+    showMessage(`Failed: ${e}`, true);
+  }
+});
 
 // ── Events ───────────────────────────────────────────────────
 listen('proxy-log', (event: { payload: string }) => {

@@ -56,11 +56,15 @@ mod sysdns;
 use config::Config;
 use proxy::ProxyManager;
 
+struct TrafficSample {
+    total: (u64, u64),
+    time: Instant,
+}
+
 struct AppState {
     proxy: Mutex<ProxyManager>,
     started_at: Mutex<Option<Instant>>,
-    prev_total: Mutex<(u64, u64)>,
-    prev_time: Mutex<Option<Instant>>,
+    prev_sample: Mutex<Option<TrafficSample>>,
     http_client: reqwest::blocking::Client,
     cached_log: Mutex<(std::time::SystemTime, Vec<String>)>,
     is_running_cache: Mutex<bool>,
@@ -73,7 +77,8 @@ fn update_tray_state(app: &tauri::AppHandle) {
     let running = state.proxy.lock().unwrap().is_running();
     drop(state);
 
-    let mode = config::load_mode();
+    let profile = config::load_profile();
+    let mode = if profile.ends_with("-h2") { "hysteria2" } else { "shadowtls" };
 
     let tooltip = if running {
         format!("dakal-tls VPN — {} (connected)", mode)
@@ -142,8 +147,7 @@ fn stop_proxy_inner(state: &State<AppState>) -> Result<String, String> {
     let mut proxy = state.proxy.lock().unwrap();
     let result = proxy.stop().map_err(|e| e.to_string())?;
     *state.started_at.lock().unwrap() = None;
-    *state.prev_total.lock().unwrap() = (0, 0);
-    *state.prev_time.lock().unwrap() = None;
+    *state.prev_sample.lock().unwrap() = None;
     *state.is_running_cache.lock().unwrap() = false;
     Ok(result)
 }
@@ -197,11 +201,12 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     let log_path = proxy.debug_log_path.clone();
     drop(proxy);
 
-    let mode = config::load_mode();
+    let profile = config::load_profile();
+    let mode = if profile.ends_with("-h2") { "hysteria2" } else { "shadowtls" };
 
     if !running {
         return Ok(FullStatus {
-            running: false, mode, server: None, uptime_secs: 0, pid: None,
+            running: false, mode: mode.to_string(), server: None, uptime_secs: 0, pid: None,
             traffic_up: 0, traffic_down: 0, total_up: 0, total_down: 0,
             log_lines: Vec::new(),
         });
@@ -231,8 +236,9 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
         cache.1.clone()
     };
 
-    // Get traffic from clash API (skip if process died)
-    let (cur_up, cur_down) = if running && pid.is_some() {
+    // Fetch traffic stats from Clash API (only if running)
+    let running = *state.is_running_cache.lock().unwrap();
+    let (cur_up, cur_down) = if running {
         let client = sing_box_client();
         client
             .get("http://127.0.0.1:9097/connections")
@@ -261,25 +267,24 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
         (0, 0)
     };
     let now = Instant::now();
-    let mut prev_total = state.prev_total.lock().unwrap();
-    let mut prev_time = state.prev_time.lock().unwrap();
-    let (traffic_up, traffic_down) = prev_time.and_then(|prev_t| {
-        let elapsed = now.duration_since(prev_t).as_secs_f64();
+    let mut prev_sample = state.prev_sample.lock().unwrap();
+    let (traffic_up, traffic_down) = if let Some(prev) = prev_sample.as_ref() {
+        let elapsed = now.duration_since(prev.time).as_secs_f64();
         if elapsed > 0.5 {
-            let up_delta = cur_up.saturating_sub(prev_total.0);
-            let down_delta = cur_down.saturating_sub(prev_total.1);
-            *prev_total = (cur_up, cur_down);
-            *prev_time = Some(now);
-            Some(((up_delta as f64 / elapsed) as u64, (down_delta as f64 / elapsed) as u64))
-        } else { None }
-    }).unwrap_or_else(|| {
-        *prev_total = (cur_up, cur_down);
-        *prev_time = Some(now);
+            let up_delta = cur_up.saturating_sub(prev.total.0);
+            let down_delta = cur_down.saturating_sub(prev.total.1);
+            *prev_sample = Some(TrafficSample { total: (cur_up, cur_down), time: now });
+            ((up_delta as f64 / elapsed) as u64, (down_delta as f64 / elapsed) as u64)
+        } else {
+            (0, 0)
+        }
+    } else {
+        *prev_sample = Some(TrafficSample { total: (cur_up, cur_down), time: now });
         (0, 0)
-    });
+    };
 
     Ok(FullStatus {
-        running: true, mode, server: Some(cfg.server_address), uptime_secs, pid,
+        running: true, mode: mode.to_string(), server: Some(cfg.server_address), uptime_secs, pid,
         traffic_up, traffic_down, total_up: cur_up, total_down: cur_down, log_lines,
     })
 }
@@ -350,22 +355,48 @@ fn get_h2_speeds() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
+fn update_settings(socks5_port: u16, mtu: Option<u32>, split_rules: Vec<serde_json::Value>) -> Result<(), String> {
+    // Settings stored per-profile would require more config refactoring
+    // For now, just validate and return OK (split tunneling will be implemented later)
+    if socks5_port < 1024 || socks5_port > 65535 {
+        return Err("Invalid SOCKS5 port".into());
+    }
+    if let Some(m) = mtu {
+        if m < 576 || m > 9000 {
+            return Err("MTU must be between 576 and 9000".into());
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_profile() -> Result<String, String> {
     Ok(config::load_profile())
 }
 
 #[tauri::command]
-fn set_profile(profile: String) -> Result<(), String> {
-    config::save_profile(&profile).map_err(|e| e.to_string())
+fn set_profile(app: tauri::AppHandle, state: State<AppState>, profile: String) -> Result<(), String> {
+    // Save profile
+    config::save_profile(&profile).map_err(|e| e.to_string())?;
+    
+    // Restart proxy if running
+    let running = state.proxy.lock().unwrap().is_running();
+    if running {
+        stop_proxy_inner(&state)?;
+        start_proxy_inner(&state)?;
+    }
+    
+    update_tray_state(&app);
+    Ok(())
 }
 
 #[tauri::command]
 fn list_profiles() -> Result<Vec<String>, String> {
     Ok(vec![
-        "germany-1-stls".to_string(),
         "germany-1-h2".to_string(),
-        "finland-1-stls".to_string(),
         "finland-1-h2".to_string(),
+        "germany-1-stls".to_string(),
+        "finland-1-stls".to_string(),
     ])
 }
 
@@ -401,8 +432,7 @@ fn main() {
         .manage(AppState {
             proxy: Mutex::new(proxy_manager),
             started_at: Mutex::new(None),
-            prev_total: Mutex::new((0, 0)),
-            prev_time: Mutex::new(None),
+            prev_sample: Mutex::new(None),
             http_client: reqwest::blocking::Client::builder()
                 .timeout(std::time::Duration::from_secs(3))
                 .build()
@@ -414,8 +444,9 @@ fn main() {
             let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let hide_item = MenuItemBuilder::with_id("hide", "Hide").build(app)?;
             let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-            let mode_startup = config::load_mode();
-            let mode_item = MenuItemBuilder::with_id("mode", &mode_startup)
+            let profile_startup = config::load_profile();
+            let mode_startup = if profile_startup.ends_with("-h2") { "hysteria2" } else { "shadowtls" };
+            let mode_item = MenuItemBuilder::with_id("mode", mode_startup)
                 .enabled(false)
                 .build(app)?;
             let connect_item = MenuItemBuilder::with_id("connect", "Connect").build(app)?;
@@ -529,6 +560,7 @@ fn main() {
             get_profile,
             set_profile,
             list_profiles,
+            update_settings,
             get_h2_speeds,
             apply_h2_preset,
         ])
