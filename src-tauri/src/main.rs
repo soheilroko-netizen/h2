@@ -350,21 +350,23 @@ fn get_h2_speeds() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("settings") {
-        win.show().ok();
-        win.set_focus().ok();
-        return Ok(());
-    }
-    WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings.html".into()))
-        .title("dakal-tls — Settings")
-        .inner_size(580.0, 520.0)
-        .resizable(true)
-        .closable(true)
-        .decorations(true)
-        .build()
-        .map_err(|e| format!("settings window: {e}"))?;
-    Ok(())
+fn get_profile() -> Result<String, String> {
+    Ok(config::load_profile())
+}
+
+#[tauri::command]
+fn set_profile(profile: String) -> Result<(), String> {
+    config::save_profile(&profile).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_profiles() -> Result<Vec<String>, String> {
+    Ok(vec![
+        "germany-1-stls".to_string(),
+        "germany-1-h2".to_string(),
+        "finland-1-stls".to_string(),
+        "finland-1-h2".to_string(),
+    ])
 }
 
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -524,7 +526,9 @@ fn main() {
             get_uptime,
             get_full_status,
             get_log,
-            open_settings_window,
+            get_profile,
+            set_profile,
+            list_profiles,
             get_h2_speeds,
             apply_h2_preset,
         ])

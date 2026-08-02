@@ -1,5 +1,4 @@
-// config.rs - App configuration management
-// Simplified: two baked-in profiles (ShadowTLS, Hysteria2), no ProfileStore
+// config.rs - 4 hardcoded profiles (no management UI)
 use anyhow::Result;
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
@@ -53,22 +52,22 @@ fn config_path() -> Result<PathBuf> {
     Ok(config_dir.join("config.json"))
 }
 
-/// Load the active mode from config.json (or default "shadowtls")
-pub fn load_mode() -> String {
+/// Load active profile name from config.json (default "germany-1-stls")
+pub fn load_profile() -> String {
     match config_path() {
         Ok(path) if path.exists() => {
             let content = fs::read_to_string(&path).unwrap_or_default();
             serde_json::from_str::<serde_json::Value>(&content)
                 .ok()
-                .and_then(|v| v["mode"].as_str().map(|s| s.to_string()))
-                .unwrap_or_else(|| "shadowtls".to_string())
+                .and_then(|v| v["profile"].as_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "germany-1-stls".to_string())
         }
-        _ => "shadowtls".to_string(),
+        _ => "germany-1-stls".to_string(),
     }
 }
 
-/// Save just the mode to config.json
-pub fn save_mode(mode: &str) -> Result<()> {
+/// Save profile name to config.json
+pub fn save_profile(profile: &str) -> Result<()> {
     let path = config_path()?;
     let mut existing = if path.exists() {
         serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&path)?)
@@ -76,7 +75,7 @@ pub fn save_mode(mode: &str) -> Result<()> {
     } else {
         serde_json::json!({})
     };
-    existing["mode"] = serde_json::Value::String(mode.to_string());
+    existing["profile"] = serde_json::Value::String(profile.to_string());
     fs::write(&path, serde_json::to_string_pretty(&existing)?)?;
     Ok(())
 }
@@ -110,79 +109,134 @@ pub fn load_h2_speeds() -> (u32, u32) {
     }
 }
 
-/// Return the baked-in ShadowTLS default config
-pub fn stls_defaults() -> Config {
-    Config {
-        server_address: "ns.baft.uk".to_string(),
-        ss_port: 8380,
-        ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".to_string(),
-        stls_port: 8553,
-        stls_password: "y2lachetore".to_string(),
-        stls_sni: "dl.google.com".to_string(),
-        socks5_port: 1080,
-        mtu: None,
-        split_rules: vec![],
-        mode: "shadowtls".to_string(),
-
-        h2_port: 40001,
-        h2_password: "testpass1".to_string(),
-        h2_sni: "ns.baft.uk".to_string(),
-        h2_insecure: false,
-        h2_obfs: "salamander".to_string(),
-        h2_obfs_password: "testobfspass".to_string(),
-        h2_mport: "40001-45000".to_string(),
-        h2_up_mbps: h2_mbps_up_default(),
-        h2_down_mbps: h2_mbps_down_default(),
-        h2_auto: h2_auto_default(),
-    }
-}
-
-/// Return the baked-in Hysteria2 default config
-pub fn h2_defaults() -> Config {
-    Config {
-        server_address: "ns.baft.uk".to_string(),
-        ss_port: 8380,
-        ss_password: String::new(),
-        stls_port: 8553,
-        stls_password: String::new(),
-        stls_sni: String::new(),
-        socks5_port: 1080,
-        mtu: None,
-        split_rules: vec![],
-        mode: "hysteria2".to_string(),
-
-        // From: hysteria2://testuser1:testpass1@ns.baft.uk:40001?sni=ns.baft.uk&insecure=0&obfs=salamander&obfs-password=testobfspass&mport=40001-45000
-        h2_port: 40001,
-        h2_password: "testpass1".to_string(),
-        h2_sni: "ns.baft.uk".to_string(),
-        h2_insecure: false,
-        h2_obfs: "salamander".to_string(),
-        h2_obfs_password: "testobfspass".to_string(),
-        h2_mport: "40001-45000".to_string(),
-        h2_up_mbps: h2_mbps_up_default(),
-        h2_down_mbps: h2_mbps_down_default(),
-        h2_auto: h2_auto_default(),
-    }
-}
-
 /// Default Hysteria2 upload bandwidth in MBps
-pub fn h2_mbps_up_default() -> u32 { 8 }
+pub fn h2_mbps_up_default() -> u32 { 40 }
 
 /// Default Hysteria2 download bandwidth in MBps
-pub fn h2_mbps_down_default() -> u32 { 24 }
+pub fn h2_mbps_down_default() -> u32 { 80 }
 
 /// Auto-tune flag default
 pub fn h2_auto_default() -> bool { false }
 
-/// Get the config for the active mode
-pub fn get_active_config() -> Config {
-    let mode = load_mode();
+/// Get config for a specific profile
+pub fn get_profile_config(profile: &str) -> Config {
     let (up, down) = load_h2_speeds();
-    let mut cfg = match mode.as_str() {
-        "hysteria2" => h2_defaults(),
-        _ => stls_defaults(),
+    
+    match profile {
+        "germany-1-stls" => Config {
+            server_address: "ns.baft.uk".to_string(),
+            ss_port: 8380,
+            ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".to_string(),
+            stls_port: 8553,
+            stls_password: "y2lachetore".to_string(),
+            stls_sni: "dl.google.com".to_string(),
+            socks5_port: 1080,
+            mtu: None,
+            split_rules: vec![],
+            mode: "shadowtls".to_string(),
+            h2_port: 40001,
+            h2_password: "".to_string(),
+            h2_sni: "".to_string(),
+            h2_insecure: false,
+            h2_obfs: "".to_string(),
+            h2_obfs_password: "".to_string(),
+            h2_mport: "".to_string(),
+            h2_up_mbps: up,
+            h2_down_mbps: down,
+            h2_auto: false,
+        },
+        "germany-1-h2" => Config {
+            server_address: "ns.baft.uk".to_string(),
+            ss_port: 8380,
+            ss_password: "".to_string(),
+            stls_port: 8553,
+            stls_password: "".to_string(),
+            stls_sni: "".to_string(),
+            socks5_port: 1080,
+            mtu: None,
+            split_rules: vec![],
+            mode: "hysteria2".to_string(),
+            h2_port: 40001,
+            h2_password: "testpass1".to_string(),
+            h2_sni: "ns.baft.uk".to_string(),
+            h2_insecure: false,
+            h2_obfs: "salamander".to_string(),
+            h2_obfs_password: "testobfspass".to_string(),
+            h2_mport: "40001-45000".to_string(),
+            h2_up_mbps: up,
+            h2_down_mbps: down,
+            h2_auto: false,
+        },
+        "finland-1-stls" => Config {
+            server_address: "fn.baft.uk".to_string(),
+            ss_port: 8380,
+            ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".to_string(),
+            stls_port: 8553,
+            stls_password: "y2lachetore".to_string(),
+            stls_sni: "dl.google.com".to_string(),
+            socks5_port: 1080,
+            mtu: None,
+            split_rules: vec![],
+            mode: "shadowtls".to_string(),
+            h2_port: 40001,
+            h2_password: "".to_string(),
+            h2_sni: "".to_string(),
+            h2_insecure: false,
+            h2_obfs: "".to_string(),
+            h2_obfs_password: "".to_string(),
+            h2_mport: "".to_string(),
+            h2_up_mbps: up,
+            h2_down_mbps: down,
+            h2_auto: false,
+        },
+        "finland-1-h2" => Config {
+            server_address: "fn.baft.uk".to_string(),
+            ss_port: 8380,
+            ss_password: "".to_string(),
+            stls_port: 8553,
+            stls_password: "".to_string(),
+            stls_sni: "".to_string(),
+            socks5_port: 1080,
+            mtu: None,
+            split_rules: vec![],
+            mode: "hysteria2".to_string(),
+            h2_port: 40001,
+            h2_password: "testpass1".to_string(),
+            h2_sni: "fn.baft.uk".to_string(),
+            h2_insecure: false,
+            h2_obfs: "salamander".to_string(),
+            h2_obfs_password: "testobfspass".to_string(),
+            h2_mport: "40001-45000".to_string(),
+            h2_up_mbps: up,
+            h2_down_mbps: down,
+            h2_auto: false,
+        },
+        _ => get_profile_config("germany-1-stls"), // fallback
+    }
+}
+
+/// Get config for active profile
+pub fn get_active_config() -> Config {
+    let profile = load_profile();
+    get_profile_config(&profile)
+}
+
+/// Legacy: load mode from active profile
+pub fn load_mode() -> String {
+    let profile = load_profile();
+    let cfg = get_profile_config(&profile);
+    cfg.mode
+}
+
+/// Legacy: save mode (maps to profile switch)
+pub fn save_mode(mode: &str) -> Result<()> {
+    // When switching mode, keep current server
+    let current = load_profile();
+    let server = if current.starts_with("germany") { "germany" } else { "finland" };
+    let new_profile = match mode {
+        "shadowtls" => format!("{}-1-stls", server),
+        "hysteria2" => format!("{}-1-h2", server),
+        _ => "germany-1-stls".to_string(),
     };
-    cfg.h2_up_mbps = up;
-    cfg.h2_down_mbps = down;
-    cfg
+    save_profile(&new_profile)
 }

@@ -16,29 +16,6 @@ interface FullStatus {
   log_lines: string[];
 }
 
-interface Config {
-  server_address: string;
-  ss_port: number;
-  ss_password: string;
-  stls_port: number;
-  stls_password: string;
-  stls_sni: string;
-  socks5_port: number;
-  mtu?: number;
-  split_rules?: { pattern: string }[];
-  mode: string;
-  h2_port: number;
-  h2_password: string;
-  h2_sni: string;
-  h2_insecure: boolean;
-  h2_obfs: string;
-  h2_obfs_password: string;
-  h2_mport: string;
-  h2_up_mbps: number;
-  h2_down_mbps: number;
-  h2_auto: boolean;
-}
-
 // ── Elements ─────────────────────────────────────────────────
 const statusDot = document.getElementById('status-dot')!;
 const statusText = document.getElementById('status-text')!;
@@ -50,8 +27,8 @@ const totalTrafficValue = document.getElementById('total-traffic-value')!;
 const message = document.getElementById('message')!;
 const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
 const btnStop = document.getElementById('btn-stop') as HTMLButtonElement;
-const btnSettings = document.getElementById('btn-main-settings')!;
 const btnLog = document.getElementById('btn-main-log')!;
+const profileSelector = document.getElementById('profile-selector') as HTMLSelectElement;
 
 // Views
 const mainView = document.getElementById('main-view')!;
@@ -194,7 +171,36 @@ async function refreshLog() {
   }
 }
 
-// ── Settings form ────────────────────────────────────────────
+// ── Profile management ───────────────────────────────────────
+async function loadProfile() {
+  try {
+    const profile = await invoke<string>('get_profile');
+    profileSelector.value = profile;
+    updateH2PresetVisibility(profile);
+    if (profile.endsWith('-h2')) loadH2PresetSelection();
+  } catch (e) {
+    console.error('Failed to load profile:', e);
+  }
+}
+
+function updateH2PresetVisibility(profile: string) {
+  const h2Sel = document.getElementById('h2-preset-selector');
+  if (h2Sel) h2Sel.style.display = profile.endsWith('-h2') ? 'block' : 'none';
+}
+
+async function loadH2PresetSelection() {
+  try {
+    const s = await invoke<{ up_mbps: number; down_mbps: number }>('get_h2_speeds');
+    const dropdown = document.getElementById('h2-preset-dropdown') as HTMLSelectElement;
+    if (!dropdown) return;
+    const { up_mbps, down_mbps } = s;
+    if (up_mbps === 4 && down_mbps === 16) dropdown.value = 'adsl';
+    else if (up_mbps === 15 && down_mbps === 30) dropdown.value = '4g';
+    else if (up_mbps === 40 && down_mbps === 80) dropdown.value = '5g';
+    else if (up_mbps === 80 && down_mbps === 120) dropdown.value = 'max';
+  } catch (e) { /* silent */ }
+}
+
 // ── Events ───────────────────────────────────────────────────
 listen('proxy-log', (event: { payload: string }) => {
   if (logView.style.display !== 'none') {
@@ -230,68 +236,17 @@ btnStop.addEventListener('click', async () => {
   }
 });
 
-btnSettings.addEventListener('click', async () => {
-  try {
-    await invoke('open_settings_window');
-  } catch (e) {
-    showMessage('Failed to open settings: ' + e, true);
-  }
-});
 btnLog.addEventListener('click', () => showView('log'));
 btnBackFromLog.addEventListener('click', () => showView('main'));
 btnRefreshLog.addEventListener('click', refreshLog);
 
-// ── Mode toggle ───────────────────────────────────────────────
-async function loadModeToggle() {
+profileSelector.addEventListener('change', async () => {
   try {
-    const mode = await invoke<string>('get_mode');
-    updateModeToggleUI(mode);
-  } catch (e) {
-    console.error('Failed to load mode:', e);
-  }
-}
-
-function updateModeToggleUI(mode: string) {
-  const stlsBtn = document.getElementById('mode-stls');
-  const h2Btn = document.getElementById('mode-h2');
-  if (!stlsBtn || !h2Btn) return;
-  stlsBtn.classList.toggle('active', mode === 'shadowtls');
-  h2Btn.classList.toggle('active', mode === 'hysteria2');
-  // Show/hide h2 preset selector
-  const h2Sel = document.getElementById('h2-preset-selector');
-  if (h2Sel) h2Sel.style.display = mode === 'hysteria2' ? 'block' : 'none';
-  if (mode === 'hysteria2') loadH2PresetSelection();
-}
-
-async function loadH2PresetSelection() {
-  try {
-    const s = await invoke<{ up_mbps: number; down_mbps: number }>('get_h2_speeds');
-    const dropdown = document.getElementById('h2-preset-dropdown') as HTMLSelectElement;
-    if (!dropdown) return;
-    // Match current speeds to preset
-    const { up_mbps, down_mbps } = s;
-    if (up_mbps === 4 && down_mbps === 16) dropdown.value = 'adsl';
-    else if (up_mbps === 15 && down_mbps === 30) dropdown.value = '4g';
-    else if (up_mbps === 40 && down_mbps === 80) dropdown.value = '5g';
-    else if (up_mbps === 80 && down_mbps === 120) dropdown.value = 'max';
-  } catch (e) { /* silent */ }
-}
-
-document.getElementById('mode-stls')?.addEventListener('click', async () => {
-  try {
-    await invoke('set_mode', { mode: 'shadowtls' });
-    updateModeToggleUI('shadowtls');
+    await invoke('set_profile', { profile: profileSelector.value });
+    updateH2PresetVisibility(profileSelector.value);
+    if (profileSelector.value.endsWith('-h2')) loadH2PresetSelection();
     await updateStatus();
-  } catch (e) {
-    showMessage(`Failed: ${e}`, true);
-  }
-});
-
-document.getElementById('mode-h2')?.addEventListener('click', async () => {
-  try {
-    await invoke('set_mode', { mode: 'hysteria2' });
-    updateModeToggleUI('hysteria2');
-    await updateStatus();
+    showMessage('Profile changed', false);
   } catch (e) {
     showMessage(`Failed: ${e}`, true);
   }
@@ -309,7 +264,7 @@ document.getElementById('h2-preset-dropdown')?.addEventListener('change', async 
 
 // ── Init ─────────────────────────────────────────────────────
 (async () => {
-  await loadModeToggle();
+  await loadProfile();
   await updateStatus();
 })();
 
