@@ -64,6 +64,11 @@ const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
 const btnStop = document.getElementById('btn-stop') as HTMLButtonElement;
 const message = document.getElementById('message')!;
 
+// Inline log elements
+const logSection = document.getElementById('log-section')!;
+const logToggle = document.getElementById('log-toggle')!;
+const inlineLogContent = document.getElementById('inline-log-content')!;
+
 // Settings panel
 const settingsPanel = document.getElementById('settings-panel')!;
 
@@ -211,6 +216,22 @@ async function refreshLog() {
   }
 }
 
+async function refreshInlineLog() {
+  try {
+    const s = await invoke<FullStatus>('get_full_status');
+    inlineLogContent.textContent = s.log_lines.join('\n') || 'No log available';
+    inlineLogContent.scrollTop = inlineLogContent.scrollHeight;
+  } catch {
+    inlineLogContent.textContent = 'Failed to load log.';
+  }
+}
+
+// ── Inline log toggle ────────────────────────────────────────
+logToggle.addEventListener('click', () => {
+  const isExpanded = logSection.classList.toggle('expanded');
+  if (isExpanded) refreshInlineLog();
+});
+
 // ── Profile management (Phase 2: Server + Protocol) ─────────
 // State: current server and protocol
 let currentServer = 'germany-1';
@@ -344,6 +365,13 @@ btnUpdateGeofiles.addEventListener('click', async () => {
 
 // ── Events ───────────────────────────────────────────────────
 listen('proxy-log', (event: { payload: string }) => {
+  // Update inline log if expanded
+  if (logSection.classList.contains('expanded')) {
+    inlineLogContent.textContent += `\n${event.payload}`;
+    inlineLogContent.scrollTop = inlineLogContent.scrollHeight;
+  }
+  
+  // Update separate log view if visible
   if (logView.style.display !== 'none') {
     logContent.textContent += `\n${event.payload}`;
     logContent.scrollTop = logContent.scrollHeight;

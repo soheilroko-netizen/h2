@@ -213,17 +213,61 @@
 }
 
 /* ── Log Content ─────────────────────────────────────────── */
+/* ── Log Section (Inline) ────────────────────────────────── */
 
-.log-content {
-  background: #1a1a1a;
+.log-section {
+  margin-top: var(--spacing-lg);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.log-toggle {
+  width: 100%;
+  padding: var(--spacing-md);
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.2s;
+}
+
+.log-toggle:hover {
+  background: var(--bg-tertiary);
+}
+
+.log-toggle .chevron {
+  transition: transform 0.3s;
+}
+
+.log-section.expanded .log-toggle .chevron {
+  transform: rotate(180deg);
+}
+
+.log-section .log-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
+  background: #0a0a0a;
   color: #0f0;
-  padding: 12px;
-  border-radius: 6px;
-  max-height: 350px;
-  overflow-y: auto;
-  font-size: 12px;
+  padding: 0;
+  margin: 0;
+  font-size: 11px;
   white-space: pre-wrap;
   word-break: break-all;
+  font-family: 'Courier New', monospace;
+}
+
+.log-section.expanded .log-content {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--spacing-md);
 }
 
 /* ── Mode Toggle (Legacy) ────────────────────────────────── */
