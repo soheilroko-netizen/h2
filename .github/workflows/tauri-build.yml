@@ -1,7 +1,7 @@
 name: Tauri Build
 on:
   push:
-    branches: [main, v2, v4, v5, v6, v12, kiri, h2]
+    branches: [main, v2, v4, v5, v6, v12, kiri, h2, h2-optimized-ci-test]
   pull_request:
     branches: [main, v2, v4, v5, v6, v12, kiri, h2]
 
