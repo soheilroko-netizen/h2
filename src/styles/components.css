@@ -129,6 +129,16 @@ textarea:focus {
 .status-indicator.connected {
   background: var(--success);
   box-shadow: 0 0 10px var(--success);
+  animation: pulse-status 2s ease-in-out infinite;
+}
+
+@keyframes pulse-status {
+  0%, 100% {
+    box-shadow: 0 0 8px var(--success);
+  }
+  50% {
+    box-shadow: 0 0 16px var(--success);
+  }
 }
 
 /* ── Info Values ─────────────────────────────────────────── */

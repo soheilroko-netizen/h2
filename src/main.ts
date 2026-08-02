@@ -51,6 +51,7 @@ const btnLog = document.getElementById('btn-main-log')!;
 const statusDot = document.getElementById('status-dot')!;
 const statusText = document.getElementById('status-text')!;
 const statusAddress = document.getElementById('status-address')!;
+const statusCard = document.querySelector('.status-card')!;
 
 // Metrics elements
 const pingValue = document.getElementById('ping-value')!;
@@ -58,6 +59,8 @@ const uptimeValue = document.getElementById('uptime-value')!;
 const trafficUpValue = document.getElementById('traffic-up-value')!;
 const trafficDownValue = document.getElementById('traffic-down-value')!;
 const splitIndicator = document.getElementById('split-indicator')!;
+const sparklineUp = document.getElementById('sparkline-up') as HTMLCanvasElement;
+const sparklineDown = document.getElementById('sparkline-down') as HTMLCanvasElement;
 
 // Controls elements
 const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
@@ -126,7 +129,49 @@ function showView(view: 'main' | 'log') {
   if (view === 'log') refreshLog();
 }
 
-// ── Auto-ping ────────────────────────────────────────────────
+// ── Sparkline rendering ──────────────────────────────────────
+const SPARKLINE_POINTS = 30;
+const upHistory: number[] = [];
+const downHistory: number[] = [];
+
+// Initialize with zeros
+for (let i = 0; i < SPARKLINE_POINTS; i++) {
+  upHistory.push(0);
+  downHistory.push(0);
+}
+
+function drawSparkline(canvas: HTMLCanvasElement, data: number[], color: string) {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  
+  const width = canvas.width;
+  const height = canvas.height;
+  const max = Math.max(...data, 1);
+  
+  ctx.clearRect(0, 0, width, height);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  
+  data.forEach((value, i) => {
+    const x = (i / (SPARKLINE_POINTS - 1)) * width;
+    const y = height - (value / max) * height;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  
+  ctx.stroke();
+}
+
+function updateSparklines(upSpeed: number, downSpeed: number) {
+  upHistory.shift();
+  upHistory.push(upSpeed);
+  downHistory.shift();
+  downHistory.push(downSpeed);
+  
+  drawSparkline(sparklineUp, upHistory, '#4ade80');
+  drawSparkline(sparklineDown, downHistory, '#60a5fa');
+}
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 
 async function doPing() {
@@ -188,6 +233,11 @@ async function updateStatus() {
 
     trafficUpValue.textContent = s.running ? formatSpeed(s.traffic_up) : '0 B/s';
     trafficDownValue.textContent = s.running ? formatSpeed(s.traffic_down) : '0 B/s';
+    
+    // Update sparklines
+    if (s.running) {
+      updateSparklines(s.traffic_up, s.traffic_down);
+    }
 
     btnStart.disabled = s.running;
     btnStop.disabled = !s.running;
@@ -272,6 +322,10 @@ function updateProtocolTabs(protocol: 'h2' | 'stls') {
     const tabProtocol = (tab as HTMLElement).dataset.protocol;
     tab.classList.toggle('active', tabProtocol === protocol);
   });
+  
+  // Update status card border color
+  statusCard.classList.remove('protocol-h2', 'protocol-stls');
+  statusCard.classList.add(`protocol-${protocol}`);
 }
 
 function updateH2PresetVisibility(protocol: 'h2' | 'stls') {

@@ -72,14 +72,39 @@
 /* ── Status Banner ───────────────────────────────────────── */
 
 .status-card {
-  background: var(--bg-card);
-  border-radius: 12px;
-  padding: 14px 18px;
   display: flex;
   align-items: center;
+  padding: var(--spacing-md);
+  background: var(--bg-card);
+  border-radius: 12px;
   gap: 10px;
   margin-bottom: var(--spacing-lg);
   border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  position: relative;
+  transition: border-color 0.3s;
+}
+
+.status-card.protocol-h2 {
+  border-color: var(--accent-h2);
+}
+
+.status-card.protocol-stls {
+  border-color: var(--accent-stls);
+}
+
+.status-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 #status-text {
@@ -109,11 +134,15 @@
   padding: var(--spacing-md);
   text-align: center;
   border: 1px solid var(--border);
-  transition: background 0.2s;
+  transition: background 0.2s, transform 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  position: relative;
 }
 
 .metric-tile:hover {
   background: var(--bg-tertiary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .metric-value {
@@ -124,11 +153,18 @@
   transition: opacity 0.2s;
 }
 
+.sparkline {
+  display: block;
+  margin: 4px auto;
+  opacity: 0.8;
+}
+
 .metric-label {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-secondary);
+  margin-top: 4px;
 }
 
 /* ── Split Tunnel Indicator ──────────────────────────────── */
