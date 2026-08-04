@@ -29,6 +29,15 @@
   color: white !important;
 }
 
+/* Connected state - darker green, white text */
+.btn-primary.connected:not(:disabled) {
+  background: #047857 !important;
+}
+
+.btn-primary.connected:not(:disabled) #btn-start-text {
+  color: white !important;
+}
+
 .btn-primary:hover:not(:disabled) {
   background: #059669;
 }

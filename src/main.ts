@@ -43,7 +43,11 @@ interface Config {
 
 // ── Elements ─────────────────────────────────────────────
 // Header elements
-const serverSelector = document.getElementById('server-selector') as HTMLSelectElement;
+const serverSelectorWrapper = document.getElementById('server-selector-wrapper')!;
+const serverSelectorTrigger = document.getElementById('server-selector-trigger')!;
+const serverSelectorFlag = document.getElementById('server-selector-flag')!;
+const serverSelectorText = document.getElementById('server-selector-text')!;
+const serverSelectorOptions = document.getElementById('server-selector-options')!;
 const protocolTabs = document.querySelectorAll('.protocol-tabs .tab');
 const btnSettingsToggle = document.getElementById('btn-settings-toggle')!;
 const btnLog = document.getElementById('btn-main-log')!;
@@ -205,11 +209,19 @@ async function doPing() {
         bar.classList.remove('active');
       }
     });
+
+    // Update triangle for 300+ ms
+    const triangle = document.getElementById('ping-triangle');
+    if (triangle) {
+      triangle.classList.toggle('active', pingMs >= 300);
+    }
   } catch {
     pingValue.textContent = '-';
     hasPingResponse = false;
     // Clear all bars on error
     document.querySelectorAll('.ping-bar').forEach(bar => bar.classList.remove('active'));
+    const triangle = document.getElementById('ping-triangle');
+    if (triangle) triangle.classList.remove('active');
   }
 }
 
@@ -280,10 +292,23 @@ async function updateStatus() {
       statusAddress.textContent = '';
     }
 
+    // TCP/UDP indicator
+    const protocolIndicator = document.getElementById('protocol-indicator');
+    if (s.running && protocolIndicator) {
+      const isH2 = s.mode === 'hysteria2';
+      protocolIndicator.textContent = isH2 ? 'UDP' : 'TCP';
+      protocolIndicator.style.display = 'inline-block';
+    } else if (protocolIndicator) {
+      protocolIndicator.style.display = 'none';
+    }
+
     if (!s.running) pingValue.textContent = '-';
 
     uptimeStartSecs = s.uptime_secs;
     btnStartText.textContent = s.running ? formatUptime(s.uptime_secs) : 'Start';
+
+    // Toggle connected class on start button
+    btnStart.classList.toggle('connected', s.running);
 
     trafficUpValue.textContent = s.running ? formatSpeed(s.traffic_up) : '0 B/s';
     trafficDownValue.textContent = s.running ? formatSpeed(s.traffic_down) : '0 B/s';
@@ -361,7 +386,7 @@ async function loadProfile() {
     currentProtocol = parsed.protocol;
     
     // Update UI
-    serverSelector.value = currentServer;
+    updateServerSelectorUI(currentServer);
     updateProtocolTabs(currentProtocol);
     updateH2PresetVisibility(currentProtocol);
     
@@ -371,18 +396,68 @@ async function loadProfile() {
   }
 }
 
-function updateProtocolTabs(protocol: 'h2' | 'stls') {
-  protocolTabs.forEach(tab => {
-    const tabProtocol = (tab as HTMLElement).dataset.protocol;
-    tab.classList.toggle('active', tabProtocol === protocol);
-  });
+function updateServerSelectorUI(server: string) {
+  const flagMap: Record<string, string> = {
+    'germany-1': 'de',
+    'finland-1': 'fi'
+  };
+  const displayMap: Record<string, string> = {
+    'germany-1': 'Germany 1',
+    'finland-1': 'Finland 1'
+  };
   
-  // Update status card border color
-  statusCard.classList.remove('protocol-h2', 'protocol-stls');
-  statusCard.classList.add(`protocol-${protocol}`);
+  const flag = flagMap[server] || 'de';
+  const display = displayMap[server] || 'Germany 1';
+  
+  serverSelectorFlag.innerHTML = `<img src="https://flagcdn.com/16x12/${flag}.png" alt="${flag.toUpperCase()}" />`;
+  serverSelectorText.textContent = display;
+  
+  // Update active option
+  serverSelectorOptions.querySelectorAll('.custom-select-option').forEach(opt => {
+    opt.classList.toggle('active', opt.dataset.value === server);
+  });
 }
 
-function updateH2PresetVisibility(protocol: 'h2' | 'stls') {
+// ── Server selector handler ──────────────────────────────────
+serverSelectorTrigger.addEventListener('click', () => {
+  serverSelectorWrapper.classList.toggle('open');
+});
+
+// Close on click outside
+document.addEventListener('click', (e) => {
+  if (!serverSelectorWrapper.contains(e.target as Node)) {
+    serverSelectorWrapper.classList.remove('open');
+  }
+});
+
+serverSelectorOptions.querySelectorAll('.custom-select-option').forEach(opt => {
+  opt.addEventListener('click', async () => {
+    currentServer = opt.dataset.value || 'germany-1';
+    serverSelectorWrapper.classList.remove('open');
+    updateServerSelectorUI(currentServer);
+    
+    try {
+      await invoke('set_profile', { profile: getProfileName() });
+      await updateStatus();
+      showMessage('Server changed', false);
+    } catch (e) {
+      showMessage(`Failed: ${e}`, true);
+    }
+  });
+});
+
+function updateProtocolTabs(protocol: 'h2' | 'stls') {
+      protocolTabs.forEach(tab => {
+        const tabProtocol = (tab as HTMLElement).dataset.protocol;
+        tab.classList.toggle('active', tabProtocol === protocol);
+      });
+  
+      // Update status card border color
+      statusCard.classList.remove('protocol-h2', 'protocol-stls');
+      statusCard.classList.add(`protocol-${protocol}`);
+    }
+
+    function updateH2PresetVisibility(protocol: 'h2' | 'stls') {
   const h2Sel = document.getElementById('h2-preset-selector');
   if (h2Sel) h2Sel.style.display = protocol === 'h2' ? 'block' : 'none';
 }
@@ -533,18 +608,6 @@ btnStop.addEventListener('click', async () => {
 btnLog.addEventListener('click', () => showView('log'));
 btnBackFromLog.addEventListener('click', () => showView('main'));
 btnRefreshLog.addEventListener('click', refreshLog);
-
-// ── Server selector handler ──────────────────────────────────
-serverSelector.addEventListener('change', async () => {
-  currentServer = serverSelector.value;
-  try {
-    await invoke('set_profile', { profile: getProfileName() });
-    await updateStatus();
-    showMessage('Server changed', false);
-  } catch (e) {
-    showMessage(`Failed: ${e}`, true);
-  }
-});
 
 // ── Protocol tabs handler ────────────────────────────────────
 protocolTabs.forEach(tab => {
