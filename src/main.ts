@@ -92,6 +92,12 @@ const btnSaveSettings = document.getElementById('btn-save-settings')!;
 const btnUpdateGeofiles = document.getElementById('btn-update-geofiles')!;
 
 // ── Helpers ──────────────────────────────────────────────────
+function getServerFlag(server: string): string {
+  if (server.indexOf('germany') !== -1 || server.indexOf('187.127.83.147') !== -1) return '🇩🇪';
+  if (server.indexOf('finland') !== -1 || server.indexOf('62.238.60.136') !== -1) return '🇫🇮';
+  return '';
+}
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -180,6 +186,9 @@ async function doPing() {
     const result = await invoke<string>('real_ping');
     pingValue.textContent = result;
     
+    // Mark that we have a ping response
+    hasPingResponse = true;
+    
     // Update ping bars based on latency
     const pingMs = parseInt(result.replace('ms', ''));
     const bars = document.querySelectorAll('.ping-bar');
@@ -194,6 +203,7 @@ async function doPing() {
     });
   } catch {
     pingValue.textContent = '-';
+    hasPingResponse = false;
     // Clear all bars on error
     document.querySelectorAll('.ping-bar').forEach(bar => bar.classList.remove('active'));
   }
@@ -234,14 +244,32 @@ function stopUptimeTimer() {
 
 let uptimeRefresh = Date.now();
 
+// ── State: connection status tracking ───────────────────────
+let isConnecting = false;
+let hasPingResponse = false;
+
 async function updateStatus() {
   try {
     const s = await invoke<FullStatus>('get_full_status');
     uptimeRefresh = Date.now();
 
-    statusText.textContent = s.running ? 'Connected' : 'Disconnected';
-    statusDot.classList.toggle('connected', s.running);
-    statusAddress.textContent = s.running && s.server ? s.server : '';
+    // Handle connecting state
+    if (s.running && !hasPingResponse) {
+      statusText.textContent = 'Connecting...';
+      statusDot.classList.remove('connected');
+      statusDot.style.background = 'var(--warning)';
+    } else if (s.running && hasPingResponse) {
+      statusText.textContent = 'Connected';
+      statusDot.classList.add('connected');
+      statusDot.style.background = '';
+    } else {
+      statusText.textContent = 'Disconnected';
+      statusDot.classList.remove('connected');
+      statusDot.style.background = '';
+      hasPingResponse = false;
+    }
+    
+    statusAddress.textContent = s.running && s.server ? getServerFlag(s.server) + ' ' + s.server : '';
 
     if (!s.running) pingValue.textContent = '-';
 

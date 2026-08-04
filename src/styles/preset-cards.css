@@ -1,13 +1,11 @@
-/* ── H2 Preset Cards ─────────────────────────────────────── */
-
 .h2-preset-cards {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .h2-preset-card {
   flex: 1;
-  padding: 10px 8px;
+  padding: 8px 6px;
   background: var(--bg-card);
   border: 2px solid var(--border);
   border-radius: 8px;
@@ -30,14 +28,14 @@
 }
 
 .preset-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .preset-speeds {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-secondary);
   font-family: 'Courier New', monospace;
 }

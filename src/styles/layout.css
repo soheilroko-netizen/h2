@@ -5,7 +5,7 @@
 .container {
   background: var(--bg-secondary);
   border-radius: 16px;
-  padding: 28px;
+  padding: 20px;
   width: 450px;
   max-height: 90vh;
   overflow-y: auto;
@@ -15,7 +15,7 @@
 /* ── App Header (Profile Bar) ────────────────────────────── */
 
 .app-header {
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: 12px;
 }
 
 .profile-bar-main {
@@ -43,7 +43,7 @@
 .protocol-tabs {
   display: flex;
   gap: 4px;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: 10px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -74,11 +74,11 @@
 .status-card {
   display: flex;
   align-items: center;
-  padding: var(--spacing-md);
+  padding: 10px;
   background: var(--bg-card);
   border-radius: 12px;
   gap: 10px;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: 12px;
   border: 1px solid var(--border);
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(10px);
@@ -126,14 +126,14 @@
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-lg);
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .metric-tile {
   background: var(--bg-card);
   border-radius: 8px;
-  padding: var(--spacing-md);
+  padding: 8px;
   text-align: center;
   border: 1px solid var(--border);
   transition: background 0.2s, transform 0.2s, box-shadow 0.2s;

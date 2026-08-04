@@ -77,11 +77,11 @@ body.main-window {
 
 .logo-container {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .app-logo {
-  height: 50px;
+  height: 42px;
   width: auto;
   filter: brightness(0) saturate(100%) invert(66%) sepia(85%) saturate(3582%) hue-rotate(164deg) brightness(99%) contrast(101%);
 }

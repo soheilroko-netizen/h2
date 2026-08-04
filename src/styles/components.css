@@ -19,14 +19,14 @@
   cursor: not-allowed;
 }
 
-.btn-primary {
+.btn-primary:not(:disabled) {
   background: var(--success);
   color: white;
 }
 
-.btn-primary #btn-start-text {
-  opacity: 1;
-  color: white;
+.btn-primary:not(:disabled) #btn-start-text {
+  opacity: 1 !important;
+  color: white !important;
 }
 
 .btn-primary:hover:not(:disabled) {
