@@ -30,10 +30,13 @@
 }
 
 /* Connected state - darker green, white text */
+.btn-primary.connected,
 .btn-primary.connected:not(:disabled) {
   background: var(--success-dim) !important;
+  color: white !important;
 }
 
+.btn-primary.connected #btn-start-text,
 .btn-primary.connected:not(:disabled) #btn-start-text {
   color: white !important;
   opacity: 1 !important;
