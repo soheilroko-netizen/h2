@@ -31,11 +31,12 @@
 
 /* Connected state - darker green, white text */
 .btn-primary.connected:not(:disabled) {
-  background: #047857 !important;
+  background: var(--success-dim) !important;
 }
 
 .btn-primary.connected:not(:disabled) #btn-start-text {
   color: white !important;
+  opacity: 1 !important;
 }
 
 .btn-primary:hover:not(:disabled) {
