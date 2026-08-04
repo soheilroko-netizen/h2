@@ -93,8 +93,12 @@ const btnUpdateGeofiles = document.getElementById('btn-update-geofiles')!;
 
 // ── Helpers ──────────────────────────────────────────────────
 function getServerFlag(server: string): string {
-  if (server.indexOf('germany') !== -1 || server.indexOf('187.127.83.147') !== -1) return '🇩🇪';
-  if (server.indexOf('finland') !== -1 || server.indexOf('62.238.60.136') !== -1) return '🇫🇮';
+  if (server.indexOf('germany') !== -1 || server.indexOf('187.127.83.147') !== -1) {
+    return '<img src="https://flagcdn.com/16x12/de.png" style="margin-right:4px;vertical-align:middle;" alt="DE" />';
+  }
+  if (server.indexOf('finland') !== -1 || server.indexOf('62.238.60.136') !== -1) {
+    return '<img src="https://flagcdn.com/16x12/fi.png" style="margin-right:4px;vertical-align:middle;" alt="FI" />';
+  }
   return '';
 }
 
@@ -269,7 +273,12 @@ async function updateStatus() {
       hasPingResponse = false;
     }
     
-    statusAddress.textContent = s.running && s.server ? getServerFlag(s.server) + ' ' + s.server : '';
+    statusAddress.textContent = s.running && s.server ? s.server : '';
+    if (s.running && s.server) {
+      statusAddress.innerHTML = getServerFlag(s.server) + s.server;
+    } else {
+      statusAddress.textContent = '';
+    }
 
     if (!s.running) pingValue.textContent = '-';
 

@@ -20,7 +20,7 @@
 }
 
 .btn-primary:not(:disabled) {
-  background: var(--success);
+  background: var(--success) !important;
   color: white;
 }
 
