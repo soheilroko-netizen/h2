@@ -24,6 +24,11 @@
   color: white;
 }
 
+.btn-primary #btn-start-text {
+  opacity: 1;
+  color: white;
+}
+
 .btn-primary:hover:not(:disabled) {
   background: #059669;
 }

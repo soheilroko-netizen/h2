@@ -113,6 +113,9 @@ impl ProxyManager {
         // Re-read config from active mode
         self.config = crate::config::get_active_config();
         self.debug_log(format!("config loaded"));
+        
+        // Clear DNS cache on profile change to prevent IP reuse
+        *self.dns_cache.lock().unwrap() = None;
 
         let exe = self.get_bundled_or_download()?;
         self.debug_log(format!("sing-box exe: {}", exe.display()));

@@ -10,7 +10,9 @@
     <div id="app">
       <!-- ═══ Main View ═══ -->
       <div class="container" id="main-view">
-        <h1>dakal</h1>
+        <div class="logo-container">
+          <img src="/src-tauri/icons/logo.png" alt="AKAL" class="app-logo" />
+        </div>
 
         <!-- App Header: Server + Protocol Selection -->
         <div class="app-header">
@@ -59,15 +61,25 @@
           </div>
         </div>
 
-        <div id="h2-preset-selector" style="display:none;margin:6px 0;padding:8px;background:#1a1a2e;border-radius:6px;border:1px solid #333;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <label style="color:#888;font-size:11px;">H2 Preset:</label>
-            <select id="h2-preset-dropdown" style="flex:1;padding:4px 8px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:4px;font-size:11px;">
-              <option value="adsl">ADSL (↑4 / ↓16 Mbps)</option>
-              <option value="4g">4G (↑15 / ↓30 Mbps)</option>
-              <option value="5g" selected>5G/Fiber (↑40 / ↓80 Mbps)</option>
-              <option value="max">Max (↑80 / ↓120 Mbps)</option>
-            </select>
+        <div id="h2-preset-selector" style="display:none;margin:6px 0;">
+          <label style="display:block;color:#888;font-size:11px;margin-bottom:6px;">H2 Speed Preset:</label>
+          <div class="h2-preset-cards">
+            <button class="h2-preset-card" data-preset="adsl">
+              <div class="preset-name">ADSL</div>
+              <div class="preset-speeds">↑4 / ↓16</div>
+            </button>
+            <button class="h2-preset-card" data-preset="4g">
+              <div class="preset-name">4G</div>
+              <div class="preset-speeds">↑15 / ↓30</div>
+            </button>
+            <button class="h2-preset-card active" data-preset="5g">
+              <div class="preset-name">5G</div>
+              <div class="preset-speeds">↑40 / ↓80</div>
+            </button>
+            <button class="h2-preset-card" data-preset="max">
+              <div class="preset-name">MAX</div>
+              <div class="preset-speeds">↑80 / ↓120</div>
+            </button>
           </div>
         </div>
 
@@ -86,9 +98,17 @@
 
         <!-- Metrics Grid -->
         <div class="metrics-grid">
-          <div class="metric-tile">
-            <div class="metric-value" id="ping-value">-</div>
-            <div class="metric-label">Ping</div>
+          <div class="metric-tile ping-tile">
+            <div class="ping-bars">
+              <div class="ping-bar ping-bar-4" data-threshold="200"></div>
+              <div class="ping-bar ping-bar-3" data-threshold="150"></div>
+              <div class="ping-bar ping-bar-2" data-threshold="100"></div>
+              <div class="ping-bar ping-bar-1" data-threshold="0"></div>
+            </div>
+            <div class="ping-content">
+              <div class="metric-value" id="ping-value">-</div>
+              <div class="metric-label">Ping</div>
+            </div>
           </div>
           <div class="metric-tile">
             <div class="metric-value" id="traffic-up-value">0 B/s</div>

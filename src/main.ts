@@ -179,8 +179,23 @@ async function doPing() {
   try {
     const result = await invoke<string>('real_ping');
     pingValue.textContent = result;
+    
+    // Update ping bars based on latency
+    const pingMs = parseInt(result.replace('ms', ''));
+    const bars = document.querySelectorAll('.ping-bar');
+    
+    bars.forEach(bar => {
+      const threshold = parseInt((bar as HTMLElement).dataset.threshold || '0');
+      if (pingMs >= threshold) {
+        bar.classList.add('active');
+      } else {
+        bar.classList.remove('active');
+      }
+    });
   } catch {
     pingValue.textContent = '-';
+    // Clear all bars on error
+    document.querySelectorAll('.ping-bar').forEach(bar => bar.classList.remove('active'));
   }
 }
 
@@ -338,13 +353,22 @@ function updateH2PresetVisibility(protocol: 'h2' | 'stls') {
 async function loadH2PresetSelection() {
   try {
     const s = await invoke<{ up_mbps: number; down_mbps: number }>('get_h2_speeds');
-    const dropdown = document.getElementById('h2-preset-dropdown') as HTMLSelectElement;
-    if (!dropdown) return;
+    const cards = document.querySelectorAll('.h2-preset-card');
+    if (!cards.length) return;
     const { up_mbps, down_mbps } = s;
-    if (up_mbps === 4 && down_mbps === 16) dropdown.value = 'adsl';
-    else if (up_mbps === 15 && down_mbps === 30) dropdown.value = '4g';
-    else if (up_mbps === 40 && down_mbps === 80) dropdown.value = '5g';
-    else if (up_mbps === 80 && down_mbps === 120) dropdown.value = 'max';
+    
+    // Remove active class from all cards
+    cards.forEach(card => card.classList.remove('active'));
+    
+    // Set active card based on speeds
+    let activePreset = '5g'; // default
+    if (up_mbps === 4 && down_mbps === 16) activePreset = 'adsl';
+    else if (up_mbps === 15 && down_mbps === 30) activePreset = '4g';
+    else if (up_mbps === 40 && down_mbps === 80) activePreset = '5g';
+    else if (up_mbps === 80 && down_mbps === 120) activePreset = 'max';
+    
+    const activeCard = document.querySelector(`.h2-preset-card[data-preset="${activePreset}"]`);
+    if (activeCard) activeCard.classList.add('active');
   } catch (e) { /* silent */ }
 }
 
@@ -506,14 +530,24 @@ protocolTabs.forEach(tab => {
   });
 });
 
-document.getElementById('h2-preset-dropdown')?.addEventListener('change', async (e) => {
-  const target = e.target as HTMLSelectElement;
-  try {
-    await invoke('apply_h2_preset', { name: target.value });
-    showMessage('Preset applied', false);
-  } catch (e) {
-    showMessage(`Failed: ${e}`, true);
-  }
+// ── H2 Preset Cards ──────────────────────────────────────────
+document.querySelectorAll('.h2-preset-card').forEach(card => {
+  card.addEventListener('click', async (e) => {
+    const target = e.currentTarget as HTMLElement;
+    const preset = target.dataset.preset;
+    if (!preset) return;
+    
+    // Update active state
+    document.querySelectorAll('.h2-preset-card').forEach(c => c.classList.remove('active'));
+    target.classList.add('active');
+    
+    try {
+      await invoke('apply_h2_preset', { name: preset });
+      showMessage('Preset applied', false);
+    } catch (e) {
+      showMessage(`Failed: ${e}`, true);
+    }
+  });
 });
 
 // ── Init ─────────────────────────────────────────────────────

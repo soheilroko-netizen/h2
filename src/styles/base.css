@@ -19,6 +19,12 @@
   --error: #ef4444;
   --warning: #f59e0b;
   
+  /* Ping colors */
+  --ping-green: #00ff88;
+  --ping-yellow: #ffcc00;
+  --ping-orange: #ff6b35;
+  --ping-red: #ff3366;
+  
   /* UI elements */
   --border: #334155;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -65,6 +71,19 @@ body.main-window {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+/* ── Logo ────────────────────────────────────────────────── */
+
+.logo-container {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.app-logo {
+  height: 50px;
+  width: auto;
+  filter: brightness(0) saturate(100%) invert(66%) sepia(85%) saturate(3582%) hue-rotate(164deg) brightness(99%) contrast(101%);
 }
 
 h1 {

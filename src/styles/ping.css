@@ -1,0 +1,69 @@
+/* ── Ping Tile with Vertical Bars ───────────────────────── */
+
+.ping-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ping-content {
+  flex: 1;
+  text-align: left;
+}
+
+.ping-content .metric-value {
+  text-align: left;
+  min-width: auto;
+}
+
+.ping-content .metric-label {
+  text-align: left;
+}
+
+/* ── Ping Bars (Vertical Stack) ─────────────────────────── */
+
+.ping-bars {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+  height: 48px;
+  justify-content: flex-end;
+}
+
+.ping-bar {
+  width: 20px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.ping-bar.active {
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* Bar 1: 0-100ms (Green) */
+.ping-bar-1.active {
+  background: var(--ping-green);
+  color: var(--ping-green);
+}
+
+/* Bar 2: 100-150ms (Yellow) */
+.ping-bar-2.active {
+  background: var(--ping-yellow);
+  color: var(--ping-yellow);
+}
+
+/* Bar 3: 150-200ms (Orange) */
+.ping-bar-3.active {
+  background: var(--ping-orange);
+  color: var(--ping-orange);
+}
+
+/* Bar 4: 200+ms (Red) */
+.ping-bar-4.active {
+  background: var(--ping-red);
+  color: var(--ping-red);
+}
