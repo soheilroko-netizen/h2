@@ -6,7 +6,7 @@ mod proxy;
 mod sysdns;
 mod geofiles;
 
-use config::Config;
+use config::{Config, SplitRule};
 #[cfg(target_os = "windows")]
 fn check_single_instance() {
     use std::ffi::CString;

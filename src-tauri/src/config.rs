@@ -118,6 +118,9 @@ pub fn h2_mbps_up_default() -> u32 { 40 }
 /// Default Hysteria2 download bandwidth in MBps
 pub fn h2_mbps_down_default() -> u32 { 80 }
 
+/// Auto-tune flag default
+pub fn h2_auto_default() -> bool { false }
+
 /// Save split tunnel settings to config.json
 pub fn save_split_settings(split_mode: &str, split_rules: Vec<SplitRule>) -> Result<()> {
     let path = config_path()?;
