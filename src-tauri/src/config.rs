@@ -219,7 +219,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             h2_auto: false,
         },
         "germany-3-stls" => Config {
-            server_address: "ns.baft.uk".to_string(),
+            server_address: "de3.baft.uk".to_string(),
             ss_port: 8380,
             ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".to_string(),
             stls_port: 8553,
@@ -242,7 +242,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             h2_auto: false,
         },
         "germany-3-h2" => Config {
-            server_address: "ns.baft.uk".to_string(),
+            server_address: "de3.baft.uk".to_string(),
             ss_port: 8380,
             ss_password: "".to_string(),
             stls_port: 8553,
