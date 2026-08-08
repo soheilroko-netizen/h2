@@ -500,7 +500,7 @@ async function loadSettings() {
     // Load split settings from new command
     const splitSettings = await invoke<{ split_mode: string; split_rules: SplitRule[] }>('get_split_settings');
     settingSplitMode.value = splitSettings.split_mode || 'full';
-    settingSplitRules.value = splitSettings.split_rules?.map(r => r.pattern).join('\\n') || '';
+    settingSplitRules.value = splitSettings.split_rules?.map(r => r.pattern).join('\n') || '';
     
     // Update split indicator
     updateSplitIndicator(splitSettings.split_mode || 'full');
