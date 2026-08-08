@@ -97,6 +97,9 @@ const btnUpdateGeofiles = document.getElementById('btn-update-geofiles')!;
 
 // ── Helpers ──────────────────────────────────────────────────
 function getServerFlag(server: string): string {
+  if (server.indexOf('netherlands') !== -1) {
+    return '<img src="https://flagcdn.com/16x12/nl.png" style="margin-right:4px;vertical-align:middle;" alt="NL" />';
+  }
   if (server.indexOf('germany') !== -1 || server.indexOf('187.127.83.147') !== -1) {
     return '<img src="https://flagcdn.com/16x12/de.png" style="margin-right:4px;vertical-align:middle;" alt="DE" />';
   }
@@ -363,7 +366,7 @@ logToggle.addEventListener('click', () => {
 
 // ── Profile management (Phase 2: Server + Protocol) ─────────
 // State: current server and protocol
-let currentServer = 'germany-1';
+let currentServer = 'netherlands-1';
 let currentProtocol: 'h2' | 'stls' = 'h2';
 
 function getProfileName(): string {
@@ -371,7 +374,7 @@ function getProfileName(): string {
 }
 
 function parseProfile(profile: string): { server: string; protocol: 'h2' | 'stls' } {
-  // Parse "germany-1-h2" -> { server: "germany-1", protocol: "h2" }
+  // Parse "netherlands-1-h2" -> { server: "netherlands-1", protocol: "h2" }
   const parts = profile.split('-');
   const protocol = parts[parts.length - 1] as 'h2' | 'stls';
   const server = parts.slice(0, -1).join('-');
@@ -398,11 +401,15 @@ async function loadProfile() {
 
 function updateServerSelectorUI(server: string) {
   const flagMap: Record<string, string> = {
+    'netherlands-1': 'nl',
     'germany-1': 'de',
+    'germany-3': 'de',
     'finland-1': 'fi'
   };
   const displayMap: Record<string, string> = {
+    'netherlands-1': 'Netherlands 1',
     'germany-1': 'Germany 1',
+    'germany-3': 'Germany 3',
     'finland-1': 'Finland 1'
   };
   
@@ -432,7 +439,7 @@ document.addEventListener('click', (e) => {
 
 serverSelectorOptions.querySelectorAll('.custom-select-option').forEach(opt => {
   opt.addEventListener('click', async () => {
-    currentServer = opt.dataset.value || 'germany-1';
+    currentServer = opt.dataset.value || 'netherlands-1';
     serverSelectorWrapper.classList.remove('open');
     updateServerSelectorUI(currentServer);
     

@@ -55,7 +55,7 @@ fn config_path() -> Result<PathBuf> {
     Ok(config_dir.join("config.json"))
 }
 
-/// Load active profile name from config.json (default "germany-1-stls")
+/// Load active profile name from config.json (default "netherlands-1-stls")
 pub fn load_profile() -> String {
     match config_path() {
         Ok(path) if path.exists() => {
@@ -63,9 +63,9 @@ pub fn load_profile() -> String {
             serde_json::from_str::<serde_json::Value>(&content)
                 .ok()
                 .and_then(|v| v["profile"].as_str().map(|s| s.to_string()))
-                .unwrap_or_else(|| "germany-1-stls".to_string())
+                .unwrap_or_else(|| "netherlands-1-stls".to_string())
         }
-        _ => "germany-1-stls".to_string(),
+        _ => "netherlands-1-stls".to_string(),
     }
 }
 
@@ -126,6 +126,52 @@ pub fn get_profile_config(profile: &str) -> Config {
     let (up, down) = load_h2_speeds();
     
     match profile {
+        "netherlands-1-stls" => Config {
+            server_address: "ns.baft.uk".to_string(),
+            ss_port: 8380,
+            ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".to_string(),
+            stls_port: 8553,
+            stls_password: "y2lachetore".to_string(),
+            stls_sni: "dl.google.com".to_string(),
+            socks5_port: 1080,
+            mtu: None,
+            split_mode: "full".to_string(),
+            split_rules: vec![],
+            mode: "shadowtls".to_string(),
+            h2_port: 40001,
+            h2_password: "".to_string(),
+            h2_sni: "".to_string(),
+            h2_insecure: false,
+            h2_obfs: "".to_string(),
+            h2_obfs_password: "".to_string(),
+            h2_mport: "".to_string(),
+            h2_up_mbps: up,
+            h2_down_mbps: down,
+            h2_auto: false,
+        },
+        "netherlands-1-h2" => Config {
+            server_address: "ns.baft.uk".to_string(),
+            ss_port: 8380,
+            ss_password: "".to_string(),
+            stls_port: 8553,
+            stls_password: "".to_string(),
+            stls_sni: "".to_string(),
+            socks5_port: 1080,
+            mtu: None,
+            split_mode: "full".to_string(),
+            split_rules: vec![],
+            mode: "hysteria2".to_string(),
+            h2_port: 40001,
+            h2_password: "testpass1".to_string(),
+            h2_sni: "ns.baft.uk".to_string(),
+            h2_insecure: false,
+            h2_obfs: "salamander".to_string(),
+            h2_obfs_password: "testobfspass".to_string(),
+            h2_mport: "40001-45000".to_string(),
+            h2_up_mbps: up,
+            h2_down_mbps: down,
+            h2_auto: false,
+        },
         "germany-1-stls" => Config {
             server_address: "ns.baft.uk".to_string(),
             ss_port: 8380,
@@ -164,6 +210,52 @@ pub fn get_profile_config(profile: &str) -> Config {
             h2_port: 40001,
             h2_password: "testpass1".to_string(),
             h2_sni: "ns.baft.uk".to_string(),
+            h2_insecure: false,
+            h2_obfs: "salamander".to_string(),
+            h2_obfs_password: "testobfspass".to_string(),
+            h2_mport: "40001-45000".to_string(),
+            h2_up_mbps: up,
+            h2_down_mbps: down,
+            h2_auto: false,
+        },
+        "germany-3-stls" => Config {
+            server_address: "ns.baft.uk".to_string(),
+            ss_port: 8380,
+            ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".to_string(),
+            stls_port: 8553,
+            stls_password: "y2lachetore".to_string(),
+            stls_sni: "dl.google.com".to_string(),
+            socks5_port: 1080,
+            mtu: None,
+            split_mode: "full".to_string(),
+            split_rules: vec![],
+            mode: "shadowtls".to_string(),
+            h2_port: 40001,
+            h2_password: "".to_string(),
+            h2_sni: "".to_string(),
+            h2_insecure: false,
+            h2_obfs: "".to_string(),
+            h2_obfs_password: "".to_string(),
+            h2_mport: "".to_string(),
+            h2_up_mbps: up,
+            h2_down_mbps: down,
+            h2_auto: false,
+        },
+        "germany-3-h2" => Config {
+            server_address: "ns.baft.uk".to_string(),
+            ss_port: 8380,
+            ss_password: "".to_string(),
+            stls_port: 8553,
+            stls_password: "".to_string(),
+            stls_sni: "".to_string(),
+            socks5_port: 1080,
+            mtu: None,
+            split_mode: "full".to_string(),
+            split_rules: vec![],
+            mode: "hysteria2".to_string(),
+            h2_port: 40001,
+            h2_password: "testpass1".to_string(),
+            h2_sni: "de3.baft.uk".to_string(),
             h2_insecure: false,
             h2_obfs: "salamander".to_string(),
             h2_obfs_password: "testobfspass".to_string(),
@@ -218,7 +310,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             h2_down_mbps: down,
             h2_auto: false,
         },
-        _ => get_profile_config("germany-1-stls"), // fallback
+        _ => get_profile_config("netherlands-1-stls"), // fallback
     }
 }
 
@@ -239,11 +331,14 @@ pub fn load_mode() -> String {
 pub fn save_mode(mode: &str) -> Result<()> {
     // When switching mode, keep current server
     let current = load_profile();
-    let server = if current.starts_with("germany") { "germany" } else { "finland" };
+    let server = if current.starts_with("netherlands") { "netherlands" }
+                 else if current.starts_with("germany") { "germany" }
+                 else { "finland" };
+    let suffix = if current.contains("germany-3") { "-3" } else { "-1" };
     let new_profile = match mode {
-        "shadowtls" => format!("{}-1-stls", server),
-        "hysteria2" => format!("{}-1-h2", server),
-        _ => "germany-1-stls".to_string(),
+        "shadowtls" => format!("{}{}-stls", server, suffix),
+        "hysteria2" => format!("{}{}-h2", server, suffix),
+        _ => "netherlands-1-stls".to_string(),
     };
     save_profile(&new_profile)
 }

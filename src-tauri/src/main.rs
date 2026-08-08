@@ -79,10 +79,18 @@ fn update_tray_state(app: &tauri::AppHandle) {
 
     let profile = config::load_profile();
     
-    // Parse profile: "germany-1-h2" -> server="Germany #1", protocol="Hysteria2"
-    let (server_name, protocol_name) = if profile.starts_with("germany") {
+    // Parse profile: "netherlands-1-h2" -> server="Netherlands #1", protocol="Hysteria2"
+    let (server_name, protocol_name) = if profile.starts_with("netherlands") {
         let proto = if profile.ends_with("-h2") { "Hysteria2" } else { "ShadowTLS" };
-        ("Germany #1", proto)
+        ("Netherlands #1", proto)
+    } else if profile.starts_with("germany") {
+        let proto = if profile.ends_with("-h2") { "Hysteria2" } else { "ShadowTLS" };
+        // Check if it's germany-3
+        if profile.contains("germany-3") {
+            ("Germany #3", proto)
+        } else {
+            ("Germany #1", proto)
+        }
     } else if profile.starts_with("finland") {
         let proto = if profile.ends_with("-h2") { "Hysteria2" } else { "ShadowTLS" };
         ("Finland #1", proto)
@@ -427,9 +435,13 @@ fn set_profile(app: tauri::AppHandle, state: State<AppState>, profile: String) -
 #[tauri::command]
 fn list_profiles() -> Result<Vec<String>, String> {
     Ok(vec![
+        "netherlands-1-h2".to_string(),
+        "netherlands-1-stls".to_string(),
         "germany-1-h2".to_string(),
-        "finland-1-h2".to_string(),
         "germany-1-stls".to_string(),
+        "germany-3-h2".to_string(),
+        "germany-3-stls".to_string(),
+        "finland-1-h2".to_string(),
         "finland-1-stls".to_string(),
     ])
 }
