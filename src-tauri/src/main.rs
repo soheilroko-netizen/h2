@@ -401,9 +401,25 @@ fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String
         geofiles::download_geofiles().map_err(|e| format!("Failed to download geofiles: {}", e))?;
     }
     
-    // TODO: Save settings to config (per-profile or global)
-    // For now just validate
+    // Save split tunnel settings
+    let split_rules_vec: Vec<SplitRule> = split_rules.into_iter().map(|pattern| SplitRule {
+        pattern,
+        process_names: vec![],
+        folder_paths: vec![],
+    }).collect();
+    
+    config::save_split_settings(&split_mode, split_rules_vec).map_err(|e| e.to_string())?;
+    
     Ok(())
+}
+
+#[tauri::command]
+fn get_split_settings() -> Result<serde_json::Value, String> {
+    let (split_mode, split_rules) = config::load_split_settings();
+    Ok(serde_json::json!({
+        "split_mode": split_mode,
+        "split_rules": split_rules
+    }))
 }
 
 #[tauri::command]

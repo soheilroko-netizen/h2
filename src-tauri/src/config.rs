@@ -118,8 +118,42 @@ pub fn h2_mbps_up_default() -> u32 { 40 }
 /// Default Hysteria2 download bandwidth in MBps
 pub fn h2_mbps_down_default() -> u32 { 80 }
 
-/// Auto-tune flag default
-pub fn h2_auto_default() -> bool { false }
+/// Save split tunnel settings to config.json
+pub fn save_split_settings(split_mode: &str, split_rules: Vec<SplitRule>) -> Result<()> {
+    let path = config_path()?;
+    let mut existing = if path.exists() {
+        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&path)?)
+            .unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+    existing["split_mode"] = serde_json::Value::String(split_mode.to_string());
+    existing["split_rules"] = serde_json::to_value(split_rules)?;
+    fs::write(&path, serde_json::to_string_pretty(&existing)?)?;
+    Ok(())
+}
+
+/// Load split tunnel settings from config.json
+pub fn load_split_settings() -> (String, Vec<SplitRule>) {
+    match config_path() {
+        Ok(path) if path.exists() => {
+            let content = fs::read_to_string(&path).unwrap_or_default();
+            let v: serde_json::Value = serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
+            let mode = v["split_mode"].as_str().unwrap_or("full").to_string();
+            let rules = v["split_rules"].as_array().map(|arr| {
+                arr.iter().filter_map(|r| {
+                    Some(SplitRule {
+                        pattern: r["pattern"].as_str()?.to_string(),
+                        process_names: r["process_names"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+                        folder_paths: r["folder_paths"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default(),
+                    })
+                }).collect()
+            }).unwrap_or_default();
+            (mode, rules)
+        }
+        _ => ("full".to_string(), vec![]),
+    }
+}
 
 /// Get config for a specific profile
 pub fn get_profile_config(profile: &str) -> Config {
@@ -317,7 +351,14 @@ pub fn get_profile_config(profile: &str) -> Config {
 /// Get config for active profile
 pub fn get_active_config() -> Config {
     let profile = load_profile();
-    get_profile_config(&profile)
+    let mut cfg = get_profile_config(&profile);
+    
+    // Load split tunnel settings from config.json (overrides profile defaults)
+    let (split_mode, split_rules) = load_split_settings();
+    cfg.split_mode = split_mode;
+    cfg.split_rules = split_rules;
+    
+    cfg
 }
 
 /// Legacy: load mode from active profile

@@ -495,12 +495,15 @@ async function loadH2PresetSelection() {
 async function loadSettings() {
   try {
     const cfg = await invoke<Config>('get_config');
-    settingSplitMode.value = cfg.split_mode || 'full';
     settingMtu.value = cfg.mtu ? String(cfg.mtu) : '';
-    settingSplitRules.value = cfg.split_rules?.map(r => r.pattern).join('\n') || '';
+    
+    // Load split settings from new command
+    const splitSettings = await invoke<{ split_mode: string; split_rules: SplitRule[] }>('get_split_settings');
+    settingSplitMode.value = splitSettings.split_mode || 'full';
+    settingSplitRules.value = splitSettings.split_rules?.map(r => r.pattern).join('\\n') || '';
     
     // Update split indicator
-    updateSplitIndicator(cfg.split_mode || 'full');
+    updateSplitIndicator(splitSettings.split_mode || 'full');
     
     // Trigger split mode change to show/hide elements
     const mode = settingSplitMode.value;
