@@ -52,6 +52,10 @@ const protocolTabs = document.querySelectorAll('.protocol-tabs .tab');
 const btnSettingsToggle = document.getElementById('btn-settings-toggle')!;
 const btnLog = document.getElementById('btn-main-log')!;
 
+// Split preset selector elements
+const splitPresetSelector = document.getElementById('split-preset-selector')!;
+const splitPresetCards = document.querySelectorAll('.split-preset-card');
+
 // Status elements
 const statusDot = document.getElementById('status-dot')!;
 const statusText = document.getElementById('status-text')!;
@@ -499,16 +503,12 @@ async function loadSettings() {
     
     // Load split settings from new command
     const splitSettings = await invoke<{ split_mode: string; split_rules: SplitRule[] }>('get_split_settings');
-    settingSplitMode.value = splitSettings.split_mode || 'full';
+    const mode = splitSettings.split_mode || 'full';
+    settingSplitMode.value = mode;
     settingSplitRules.value = splitSettings.split_rules?.map(r => r.pattern).join('\n') || '';
     
-    // Update split indicator
-    updateSplitIndicator(splitSettings.split_mode || 'full');
-    
-    // Trigger split mode change to show/hide elements
-    const mode = settingSplitMode.value;
-    customRulesContainer.style.display = mode === 'custom' ? 'block' : 'none';
-    btnUpdateGeofiles.style.display = mode === 'iran' ? 'inline-block' : 'none';
+    // Update split preset UI
+    updateSplitPresetUI(mode);
   } catch (e) {
     console.error('Failed to load settings:', e);
   }
@@ -520,10 +520,50 @@ function updateSplitIndicator(splitMode: string) {
   
   let tooltipText = 'Full tunnel';
   if (splitMode === 'iran') tooltipText = 'Split tunnel: Iran Direct';
+  else if (splitMode === 'wow') tooltipText = 'Split tunnel: WoW Split (Blizzard/Battle.net only)';
   else if (splitMode === 'custom') tooltipText = 'Split tunnel: Custom rules';
   
   splitIndicator.setAttribute('title', tooltipText);
 }
+
+// Get WoW split domains
+function getWowSplitRules(): string[] {
+  return [
+    '*.battle.net',
+    '*.blizzard.com', 
+    '*.worldofwarcraft.com',
+    '*.akamaized.net'
+  ];
+}
+
+// Update split preset UI
+function updateSplitPresetUI(preset: string) {
+  splitPresetCards.forEach(card => {
+    card.classList.toggle('active', (card as HTMLElement).dataset.preset === preset);
+  });
+  
+  // Update the hidden select as well for compatibility
+  settingSplitMode.value = preset;
+  
+  // Show/hide custom rules container
+  customRulesContainer.style.display = preset === 'custom' ? 'block' : 'none';
+  btnUpdateGeofiles.style.display = preset === 'iran' ? 'inline-block' : 'none';
+  
+  // If WoW preset, populate the textarea with WoW domains
+  if (preset === 'wow') {
+    settingSplitRules.value = getWowSplitRules().join('\n');
+  }
+  
+  updateSplitIndicator(preset);
+}
+
+// Split preset card handlers
+splitPresetCards.forEach(card => {
+  card.addEventListener('click', () => {
+    const preset = (card as HTMLElement).dataset.preset || 'full';
+    updateSplitPresetUI(preset);
+  });
+});
 
 // ── Settings panel toggle & split mode handling ─────────────
 settingSplitMode.addEventListener('change', () => {
@@ -531,6 +571,9 @@ settingSplitMode.addEventListener('change', () => {
   customRulesContainer.style.display = mode === 'custom' ? 'block' : 'none';
   btnUpdateGeofiles.style.display = mode === 'iran' ? 'inline-block' : 'none';
   updateSplitIndicator(mode);
+  
+  // Update preset cards to match
+  updateSplitPresetUI(mode);
 });
 
 btnSettingsToggle.addEventListener('click', async () => {
