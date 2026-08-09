@@ -257,6 +257,15 @@ impl ProxyManager {
         let h2_mode = c.mode == "hysteria2";
         let final_outbound = if h2_mode { "h2-out" } else { "ss-out" };
 
+        // WoW Split mode: whitelist (only listed domains go through VPN)
+        let is_wow_mode = c.split_mode == "wow";
+        
+        let (route_final, default_direct) = if is_wow_mode {
+            ("direct", final_outbound)  // default = direct, WoW domains → VPN
+        } else {
+            (final_outbound, "direct")  // default = VPN, listed domains → direct
+        };
+
         // Build outbounds
         let mut outbounds = self.common_outbounds();
         // Patch server IP for VPN loop prevention
@@ -280,16 +289,27 @@ impl ProxyManager {
             let mut split_rules = Vec::new();
             for split_rule in &c.split_rules {
                 let pattern = &split_rule.pattern;
+                let outbound = if is_wow_mode { default_direct } else { "direct" };
+                
                 if pattern.starts_with("*.") {
-                    split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": "direct"}));
+                    split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": outbound}));
                 } else if pattern.contains("*") {
-                    split_rules.push(serde_json::json!({"domain_keyword": [pattern.replace("*", "")], "outbound": "direct"}));
+                    split_rules.push(serde_json::json!({"domain_keyword": [pattern.replace("*", "")], "outbound": outbound}));
                 } else {
-                    split_rules.push(serde_json::json!({"domain": [pattern.clone()], "outbound": "direct"}));
+                    split_rules.push(serde_json::json!({"domain": [pattern.clone()], "outbound": outbound}));
                 }
             }
             let arr = route_rules.as_array_mut().unwrap();
             arr.splice(2..2, split_rules);
+        }
+
+        // For WoW mode, add hardcoded WoW domains if not already in split_rules
+        if is_wow_mode && c.split_rules.is_empty() {
+            let wow_domains = ["battle.net", "blizzard.com", "worldofwarcraft.com", "akamaized.net"];
+            let arr = route_rules.as_array_mut().unwrap();
+            for domain in wow_domains {
+                arr.insert(2, serde_json::json!({"domain_suffix": [domain], "outbound": default_direct}));
+            }
         }
 
         Ok(serde_json::json!({
@@ -314,7 +334,7 @@ impl ProxyManager {
             "outbounds": outbounds,
             "route": {
                 "rules": route_rules,
-                "final": final_outbound,
+                "final": route_final,
                 "auto_detect_interface": true,
                 "default_domain_resolver": "remote-doh",
                 "find_process": false
