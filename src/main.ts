@@ -471,6 +471,9 @@ function updateProtocolTabs(protocol: 'h2' | 'stls') {
     function updateH2PresetVisibility(protocol: 'h2' | 'stls') {
   const h2Sel = document.getElementById('h2-preset-selector');
   if (h2Sel) h2Sel.style.display = protocol === 'h2' ? 'block' : 'none';
+  
+  const splitSel = document.getElementById('split-preset-selector');
+  if (splitSel) splitSel.style.display = 'block';
 }
 
 async function loadH2PresetSelection() {
