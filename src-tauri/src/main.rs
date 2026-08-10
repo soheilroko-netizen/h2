@@ -383,7 +383,7 @@ fn get_h2_speeds() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String>) -> Result<(), String> {
+fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String>, reconnect: bool, state: State<AppState>, app: tauri::AppHandle) -> Result<bool, String> {
     // Validate MTU
     if let Some(m) = mtu {
         if m < 576 || m > 9000 {
@@ -392,7 +392,7 @@ fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String
     }
     
     // Validate split mode
-    if !["full", "iran", "custom"].contains(&split_mode.as_str()) {
+    if !["full", "iran", "wow", "custom"].contains(&split_mode.as_str()) {
         return Err("Invalid split mode".into());
     }
     
@@ -410,7 +410,22 @@ fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String
     
     config::save_split_settings(&split_mode, split_rules_vec).map_err(|e| e.to_string())?;
     
-    Ok(())
+    // Reconnect if proxy is running and requested
+    let restarted = if reconnect {
+        let was_running = state.proxy.lock().unwrap().is_running();
+        if was_running {
+            let _ = stop_proxy_inner(&state);
+            let _ = start_proxy_inner(&app, &state);
+            update_tray_state(&app);
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+    
+    Ok(restarted)
 }
 
 #[tauri::command]
@@ -465,7 +480,7 @@ fn list_profiles() -> Result<Vec<String>, String> {
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .title("dakal")
-        .inner_size(500.0, 680.0)
+        .inner_size(500.0, 720.0)
         .resizable(false)
         .build()?;
     Ok(())

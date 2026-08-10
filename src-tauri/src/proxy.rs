@@ -289,7 +289,7 @@ impl ProxyManager {
             let mut split_rules = Vec::new();
             for split_rule in &c.split_rules {
                 let pattern = &split_rule.pattern;
-                let outbound = if is_wow_mode { default_direct } else { "direct" };
+                let outbound = if is_wow_mode { "direct" } else { "direct" };
                 
                 if pattern.starts_with("*.") {
                     split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": outbound}));
@@ -303,8 +303,11 @@ impl ProxyManager {
             arr.splice(2..2, split_rules);
         }
 
-        // For WoW mode, add hardcoded WoW domains if not already in split_rules
-        if is_wow_mode && c.split_rules.is_empty() {
+        // For WoW mode, add hardcoded WoW domains
+        let mut has_wow_rules = c.split_rules.iter().any(|r| {
+            matches!(r.pattern.as_str(), "*.battle.net" | "*.blizzard.com" | "*.worldofwarcraft.com" | "*.akamaized.net")
+        });
+        if is_wow_mode && !has_wow_rules {
             let wow_domains = ["battle.net", "blizzard.com", "worldofwarcraft.com", "akamaized.net"];
             let arr = route_rules.as_array_mut().unwrap();
             for domain in wow_domains {

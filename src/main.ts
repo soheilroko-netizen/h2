@@ -562,9 +562,30 @@ function updateSplitPresetUI(preset: string) {
 
 // Split preset card handlers
 splitPresetCards.forEach(card => {
-  card.addEventListener('click', () => {
+  card.addEventListener('click', async () => {
     const preset = (card as HTMLElement).dataset.preset || 'full';
     updateSplitPresetUI(preset);
+
+    // Auto-save settings (with WoW domains if preset is 'wow')
+    const splitRules = preset === 'wow'
+      ? getWowSplitRules()
+      : (preset === 'custom' ? settingSplitRules.value.split('\n').map(s => s.trim()).filter(s => s.length > 0) : []);
+
+    try {
+      const running = await invoke('get_status');
+      await invoke('update_settings', {
+        mtu: settingMtu.value ? parseInt(settingMtu.value, 10) : null,
+        splitMode: preset,
+        splitRules,
+        reconnect: running
+      });
+      showMessage('Settings saved', false);
+      if (running) {
+        showMessage('Reconnecting with new split settings...', false);
+      }
+    } catch (e) {
+      showMessage(`Failed: ${e}`, true);
+    }
   });
 });
 
@@ -586,10 +607,10 @@ btnSettingsToggle.addEventListener('click', async () => {
   // Resize window
   const appWindow = getCurrentWindow();
   if (visible) {
-    await appWindow.setSize(new LogicalSize(500, 680));
+  await appWindow.setSize(new LogicalSize(500, 620));
   } else {
-    await appWindow.setSize(new LogicalSize(500, 900));
-    loadSettings();
+  await appWindow.setSize(new LogicalSize(500, 720));
+  loadSettings();
   }
 });
 
@@ -602,8 +623,10 @@ btnSaveSettings.addEventListener('click', async () => {
       .map(s => s.trim())
       .filter(s => s.length > 0);
 
-    await invoke('update_settings', { mtu, splitMode, splitRules });
+    const running = await invoke('get_status');
+    await invoke('update_settings', { mtu, splitMode, splitRules, reconnect: running });
     showMessage('Settings saved', false);
+    if (running) showMessage('Reconnecting...', false);
   } catch (e) {
     showMessage(`Failed: ${e}`, true);
   }
