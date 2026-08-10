@@ -315,8 +315,7 @@ impl ProxyManager {
                 "type": "tun", "tag": "tun-in",
                 "address": ["172.19.0.1/30"],
                 "mtu": c.mtu,
-                "auto_route": true, "strict_route": false, "stack": "system",
-                "sniff": true
+                "auto_route": true, "strict_route": false, "stack": "system"
             }],
             "outbounds": outbounds,
             "route": {
