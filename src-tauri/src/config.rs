@@ -256,7 +256,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             h2_auto: false,
         },
         "germany-3-stls" => Config {
-            server_address: "185.237.97.196".to_string(),
+            server_address: "de3.baft.uk".to_string(),
             ss_port: 8380,
             ss_password: "tE+3/qlN/orCZRVUutWouysZ8BQs4RWzq46WK6CDGG4=".to_string(),
             stls_port: 8553,
@@ -279,7 +279,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             h2_auto: false,
         },
         "germany-3-h2" => Config {
-            server_address: "185.237.97.196".to_string(),
+            server_address: "de3.baft.uk".to_string(),
             ss_port: 8380,
             ss_password: "".to_string(),
             stls_port: 8553,
@@ -292,7 +292,7 @@ pub fn get_profile_config(profile: &str) -> Config {
             mode: "hysteria2".to_string(),
             h2_port: 40001,
             h2_password: "testpass1".to_string(),
-            h2_sni: "185.237.97.196".to_string(),
+            h2_sni: "de3.baft.uk".to_string(),
             h2_insecure: false,
             h2_obfs: "salamander".to_string(),
             h2_obfs_password: "testobfspass".to_string(),
