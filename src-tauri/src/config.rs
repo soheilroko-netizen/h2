@@ -409,6 +409,8 @@ pub fn can_download_geofiles() -> bool {
         }
         _ => true,
     }
+}
+
 pub fn save_mode(mode: &str) -> Result<()> {
     // When switching mode, keep current server
     let current = load_profile();
