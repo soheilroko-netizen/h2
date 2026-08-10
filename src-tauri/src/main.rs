@@ -3,7 +3,6 @@
 
 mod config;
 mod proxy;
-mod sysdns;
 mod geofiles;
 
 use config::{Config, SplitRule};

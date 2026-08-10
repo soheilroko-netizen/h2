@@ -1,7 +1,6 @@
 // proxy.rs - sing-box proxy manager (VPN-only)
 use anyhow::{bail, Context, Result};
 use crate::config::Config;
-use crate::sysdns;
 use directories::ProjectDirs;
 use std::fs;
 use std::io::{Read, Write};
@@ -29,7 +28,6 @@ pub struct ProxyManager {
     child: Arc<Mutex<Option<Child>>>,
     config_dir: PathBuf,
     config: Config,
-    saved_dns: Arc<Mutex<Option<sysdns::DnsState>>>,
     active_mode: Arc<Mutex<Option<String>>>,
     dns_cache: Arc<Mutex<Option<Vec<String>>>>,
     pub debug_log_path: PathBuf,
@@ -48,7 +46,6 @@ impl ProxyManager {
             child: Arc::new(Mutex::new(None)),
             config_dir: config_dir.clone(),
             config,
-            saved_dns: Arc::new(Mutex::new(None)),
             active_mode: Arc::new(Mutex::new(None)),
             dns_cache: Arc::new(Mutex::new(None)),
             debug_log_path: config_dir.join("dakal-tls-debug.log"),
@@ -188,17 +185,6 @@ impl ProxyManager {
         *self.child.lock().unwrap() = Some(child);
         *self.active_mode.lock().unwrap() = Some("vpn".into());
 
-        // Switch DNS to 8.8.8.8 so queries hit TUN
-        match sysdns::DnsState::enable() {
-            Ok(dns) => {
-                *self.saved_dns.lock().unwrap() = Some(dns);
-                self.debug_log("DNS set to 8.8.8.8");
-            }
-            Err(e) => {
-                self.debug_log(format!("DNS set failed (non-fatal): {e}"));
-            }
-        }
-
         Ok("VPN mode started".to_string())
     }
 
@@ -215,13 +201,6 @@ impl ProxyManager {
 
         if !was_running {
             bail!("Not running");
-        }
-
-        // Restore DNS (DHCP) — always in VPN-only mode
-        let dns_state = self.saved_dns.lock().unwrap().take();
-        if let Some(ref dns) = dns_state {
-            let _ = dns.restore();
-            self.debug_log("DNS restored to DHCP");
         }
 
         Ok("Stopped".into())
@@ -289,7 +268,9 @@ impl ProxyManager {
             let mut split_rules = Vec::new();
             for split_rule in &c.split_rules {
                 let pattern = &split_rule.pattern;
-                let outbound = if is_wow_mode { "direct" } else { "direct" };
+                // Split rules are "bypass" exceptions (route to direct)
+                // In WoW mode, rules are whitelist entries (route to final_outbound)
+                let outbound = if is_wow_mode { final_outbound } else { "direct" };
                 
                 if pattern.starts_with("*.") {
                     split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": outbound}));
@@ -332,7 +313,8 @@ impl ProxyManager {
                 "type": "tun", "tag": "tun-in",
                 "address": ["172.19.0.1/30"],
                 "mtu": c.mtu,
-                "auto_route": true, "strict_route": true, "stack": "system"
+                "auto_route": true, "strict_route": true, "stack": "system",
+                "sniff": false
             }],
             "outbounds": outbounds,
             "route": {
