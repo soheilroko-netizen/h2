@@ -259,7 +259,7 @@ impl ProxyManager {
         // Build route rules
         let mut route_rules = serde_json::json!([
             {"action": "sniff"},
-            {"action": "hijack-dns", "protocol": "dns"},
+            {"protocol": "dns", "action": "hijack-dns"},
             {"ip_cidr": bypass_cidrs, "outbound": "direct"}
         ]);
 
@@ -306,7 +306,9 @@ impl ProxyManager {
                 }
             },
             "dns": {
-                "servers": [{"type": "https", "tag": "remote-doh", "server": "1.1.1.1", "detour": final_outbound}],
+                "servers": [
+                    {"type": "https", "tag": "remote-doh", "server": "1.1.1.1", "detour": final_outbound}
+                ],
                 "final": "remote-doh"
             },
             "inbounds": [{
@@ -314,7 +316,7 @@ impl ProxyManager {
                 "address": ["172.19.0.1/30"],
                 "mtu": c.mtu,
                 "auto_route": true, "strict_route": false, "stack": "system",
-                "sniff": false
+                "sniff": true
             }],
             "outbounds": outbounds,
             "route": {
