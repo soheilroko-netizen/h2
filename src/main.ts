@@ -637,7 +637,6 @@ btnUpdateGeofiles.addEventListener('click', async () => {
     showMessage(`Failed: ${e}`, true);
   }
 });
-});
 
 // ── Events ───────────────────────────────────────────────────
 listen('proxy-log', (event: { payload: string }) => {
