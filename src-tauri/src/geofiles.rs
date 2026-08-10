@@ -29,6 +29,9 @@ pub fn download_geofiles() -> Result<()> {
     let geosite_bytes = reqwest::blocking::get(geosite_url)?.bytes()?;
     fs::write(&geosite_path, geosite_bytes)?;
 
+    // Record timestamp for 1-week cooldown
+    let _ = crate::config::save_geofiles_timestamp();
+
     Ok(())
 }
 

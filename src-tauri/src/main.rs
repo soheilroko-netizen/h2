@@ -442,6 +442,11 @@ fn update_geofiles() -> Result<(), String> {
 }
 
 #[tauri::command]
+fn can_download_geofiles() -> Result<bool, String> {
+    Ok(config::can_download_geofiles())
+}
+
+#[tauri::command]
 fn get_profile() -> Result<String, String> {
     Ok(config::load_profile())
 }
@@ -638,6 +643,7 @@ fn main() {
             list_profiles,
             update_settings,
             update_geofiles,
+            can_download_geofiles,
             get_h2_speeds,
             apply_h2_preset,
         ])

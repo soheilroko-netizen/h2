@@ -92,8 +92,8 @@ const btnRefreshLog = document.getElementById('btn-refresh-log')!;
 const btnBackFromLog = document.getElementById('btn-back-from-log')!;
 
 // Settings inputs
-const settingSplitMode = document.getElementById('setting-split-mode') as HTMLSelectElement;
 const customRulesContainer = document.getElementById('custom-rules-container')!;
+const wowInfoContainer = document.getElementById('wow-info-container')!;
 const settingMtu = document.getElementById('setting-mtu') as HTMLInputElement;
 const settingSplitRules = document.getElementById('setting-split-rules') as HTMLTextAreaElement;
 const btnSaveSettings = document.getElementById('btn-save-settings')!;
@@ -504,10 +504,9 @@ async function loadSettings() {
     const cfg = await invoke<Config>('get_config');
     settingMtu.value = cfg.mtu ? String(cfg.mtu) : '';
     
-    // Load split settings from new command
+    // Load split settings
     const splitSettings = await invoke<{ split_mode: string; split_rules: SplitRule[] }>('get_split_settings');
     const mode = splitSettings.split_mode || 'full';
-    settingSplitMode.value = mode;
     settingSplitRules.value = splitSettings.split_rules?.map(r => r.pattern).join('\n') || '';
     
     // Update split preset UI
@@ -529,34 +528,31 @@ function updateSplitIndicator(splitMode: string) {
   splitIndicator.setAttribute('title', tooltipText);
 }
 
-// Get WoW split domains
-function getWowSplitRules(): string[] {
-  return [
-    '*.battle.net',
-    '*.blizzard.com', 
-    '*.worldofwarcraft.com',
-    '*.akamaized.net'
-  ];
+// Check geofiles cooldown and toggle button
+async function checkGeofilesCooldown() {
+  try {
+    const canDownload = await invoke<boolean>('can_download_geofiles');
+    btnUpdateGeofiles.style.display = canDownload ? 'inline-block' : 'none';
+  } catch {
+    btnUpdateGeofiles.style.display = 'inline-block';
+  }
 }
 
-// Update split preset UI
 function updateSplitPresetUI(preset: string) {
   splitPresetCards.forEach(card => {
     card.classList.toggle('active', (card as HTMLElement).dataset.preset === preset);
   });
-  
-  // Update the hidden select as well for compatibility
-  settingSplitMode.value = preset;
-  
-  // Show/hide custom rules container
+
   customRulesContainer.style.display = preset === 'custom' ? 'block' : 'none';
-  btnUpdateGeofiles.style.display = preset === 'iran' ? 'inline-block' : 'none';
-  
-  // If WoW preset, populate the textarea with WoW domains
-  if (preset === 'wow') {
-    settingSplitRules.value = getWowSplitRules().join('\n');
+  wowInfoContainer.style.display = preset === 'wow' ? 'block' : 'none';
+
+  // Geofiles button hidden unless iran mode + cooldown passed
+  if (preset === 'iran') {
+    checkGeofilesCooldown();
+  } else {
+    btnUpdateGeofiles.style.display = 'none';
   }
-  
+
   updateSplitIndicator(preset);
 }
 
@@ -566,10 +562,10 @@ splitPresetCards.forEach(card => {
     const preset = (card as HTMLElement).dataset.preset || 'full';
     updateSplitPresetUI(preset);
 
-    // Auto-save settings (with WoW domains if preset is 'wow')
-    const splitRules = preset === 'wow'
-      ? getWowSplitRules()
-      : (preset === 'custom' ? settingSplitRules.value.split('\n').map(s => s.trim()).filter(s => s.length > 0) : []);
+    // WoW domains handled in backend automatically — pass empty rules
+    const splitRules = preset === 'custom'
+      ? settingSplitRules.value.split('\n').map(s => s.trim()).filter(s => s.length > 0)
+      : [];
 
     try {
       const running = await invoke('get_status');
@@ -589,35 +585,26 @@ splitPresetCards.forEach(card => {
   });
 });
 
-// ── Settings panel toggle & split mode handling ─────────────
-settingSplitMode.addEventListener('change', () => {
-  const mode = settingSplitMode.value;
-  customRulesContainer.style.display = mode === 'custom' ? 'block' : 'none';
-  btnUpdateGeofiles.style.display = mode === 'iran' ? 'inline-block' : 'none';
-  updateSplitIndicator(mode);
-  
-  // Update preset cards to match
-  updateSplitPresetUI(mode);
-});
-
+// ── Settings panel toggle ─────────────
 btnSettingsToggle.addEventListener('click', async () => {
   const visible = settingsPanel.style.display !== 'none';
   settingsPanel.style.display = visible ? 'none' : 'block';
-  
-  // Resize window
+
   const appWindow = getCurrentWindow();
   if (visible) {
-  await appWindow.setSize(new LogicalSize(500, 620));
+    await appWindow.setSize(new LogicalSize(500, 620));
   } else {
-  await appWindow.setSize(new LogicalSize(500, 720));
-  loadSettings();
+    await appWindow.setSize(new LogicalSize(500, 720));
+    loadSettings();
   }
 });
 
 btnSaveSettings.addEventListener('click', async () => {
   try {
     const mtu = settingMtu.value ? parseInt(settingMtu.value, 10) : null;
-    const splitMode = settingSplitMode.value;
+    // Get current split mode from active preset card
+    const activeCard = document.querySelector('.split-preset-card.active') as HTMLElement;
+    const splitMode = activeCard ? activeCard.dataset.preset || 'full' : 'full';
     const splitRules = settingSplitRules.value
       .split('\n')
       .map(s => s.trim())
@@ -634,12 +621,22 @@ btnSaveSettings.addEventListener('click', async () => {
 
 btnUpdateGeofiles.addEventListener('click', async () => {
   try {
+    // Check cooldown
+    const canDownload = await invoke<boolean>('can_download_geofiles');
+    if (!canDownload) {
+      showMessage('Geofiles updated recently. Try again in a week.', true);
+      return;
+    }
+
     showMessage('Downloading geofiles...', false);
     await invoke('update_geofiles');
     showMessage('Geofiles updated', false);
+    // Hide button after successful update
+    btnUpdateGeofiles.style.display = 'none';
   } catch (e) {
     showMessage(`Failed: ${e}`, true);
   }
+});
 });
 
 // ── Events ───────────────────────────────────────────────────

@@ -371,7 +371,44 @@ pub fn load_mode() -> String {
     cfg.mode
 }
 
-/// Legacy: save mode (maps to profile switch)
+/// Save geofiles update timestamp to config.json
+pub fn save_geofiles_timestamp() -> Result<()> {
+    let path = config_path()?;
+    let mut existing = if path.exists() {
+        serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&path)?)
+            .unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+    existing["geofiles_last_update"] = serde_json::Value::String(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs()
+            .to_string()
+    );
+    fs::write(&path, serde_json::to_string_pretty(&existing)?)?;
+    Ok(())
+}
+
+/// Check if geofiles cooldown period has passed (returns true if can download)
+pub fn can_download_geofiles() -> bool {
+    match config_path() {
+        Ok(path) if path.exists() => {
+            let content = fs::read_to_string(&path).unwrap_or_default();
+            let v: serde_json::Value = serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
+            if let Some(ts) = v["geofiles_last_update"].as_str() {
+                if let Ok(last_secs) = ts.parse::<u64>() {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    return now.saturating_sub(last_secs) >= 7 * 24 * 3600; // 7 days
+                }
+            }
+            true
+        }
+        _ => true,
+    }
 pub fn save_mode(mode: &str) -> Result<()> {
     // When switching mode, keep current server
     let current = load_profile();
