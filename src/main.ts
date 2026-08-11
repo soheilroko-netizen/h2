@@ -521,9 +521,7 @@ function updateSplitIndicator(splitMode: string) {
   splitIndicator.classList.toggle('active', isActive);
   
   let tooltipText = 'Full tunnel';
-  if (splitMode === 'iran') tooltipText = 'Split tunnel: Iran Direct';
-  else if (splitMode === 'wow') tooltipText = 'Split tunnel: WoW Split (Blizzard/Battle.net only)';
-  else if (splitMode === 'custom') tooltipText = 'Split tunnel: Custom rules';
+  if (splitMode === 'wow') tooltipText = 'Split tunnel: WoW Split (Blizzard/Battle.net only)';
   
   splitIndicator.setAttribute('title', tooltipText);
 }
@@ -546,12 +544,8 @@ function updateSplitPresetUI(preset: string) {
   customRulesContainer.style.display = preset === 'custom' ? 'block' : 'none';
   wowInfoContainer.style.display = preset === 'wow' ? 'block' : 'none';
 
-  // Geofiles button hidden unless iran mode + cooldown passed
-  if (preset === 'iran') {
-    checkGeofilesCooldown();
-  } else {
-    btnUpdateGeofiles.style.display = 'none';
-  }
+  // Geofiles button hidden for all modes
+  btnUpdateGeofiles.style.display = 'none';
 
   updateSplitIndicator(preset);
 }
@@ -562,10 +556,8 @@ splitPresetCards.forEach(card => {
     const preset = (card as HTMLElement).dataset.preset || 'full';
     updateSplitPresetUI(preset);
 
-    // WoW domains handled in backend automatically — pass empty rules
-    const splitRules = preset === 'custom'
-      ? settingSplitRules.value.split('\n').map(s => s.trim()).filter(s => s.length > 0)
-      : [];
+    // No custom rules in remaining modes — WoW domains hardcoded in backend
+    const splitRules: string[] = [];
 
     try {
       const running = await invoke('get_status');
@@ -605,10 +597,7 @@ btnSaveSettings.addEventListener('click', async () => {
     // Get current split mode from active preset card
     const activeCard = document.querySelector('.split-preset-card.active') as HTMLElement;
     const splitMode = activeCard ? activeCard.dataset.preset || 'full' : 'full';
-    const splitRules = settingSplitRules.value
-      .split('\n')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
+    const splitRules: string[] = [];  // No custom rules
 
     const running = await invoke('get_status');
     await invoke('update_settings', { mtu, splitMode, splitRules, reconnect: running });

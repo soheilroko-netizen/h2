@@ -16,7 +16,7 @@ pub struct Config {
     pub socks5_port: u16,
     pub mtu: Option<u32>,
     #[serde(default)]
-    pub split_mode: String, // "full", "iran", "custom"
+    pub split_mode: String, // "full", "wow"
     #[serde(default)]
     pub split_rules: Vec<SplitRule>,
 
