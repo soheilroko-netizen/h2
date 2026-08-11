@@ -259,7 +259,7 @@ impl ProxyManager {
         // Build route rules
         let mut route_rules = serde_json::json!([
             {"action": "sniff"},
-            {"protocol": "dns", "action": "hijack-dns"},
+            {"protocol": "dns", "outbound": final_outbound},
             {"ip_cidr": bypass_cidrs, "outbound": "direct"}
         ]);
 
@@ -281,7 +281,7 @@ impl ProxyManager {
                 }
             }
             let arr = route_rules.as_array_mut().unwrap();
-            arr.splice(2..2, split_rules);
+            arr.splice(3..3, split_rules);
         }
 
         // For WoW mode, add hardcoded WoW domains
@@ -292,7 +292,7 @@ impl ProxyManager {
             let wow_domains = ["battle.net", "blizzard.com", "worldofwarcraft.com", "akamaized.net"];
             let arr = route_rules.as_array_mut().unwrap();
             for domain in wow_domains {
-                arr.insert(2, serde_json::json!({"domain_suffix": [domain], "outbound": default_direct}));
+                arr.insert(3, serde_json::json!({"domain_suffix": [domain], "outbound": default_direct}));
             }
         }
 
@@ -467,6 +467,5 @@ fn resolve_hostname(host: &str) -> Result<Vec<String>> {
     Ok(ips)
 }
 
-// ── tests ────────────────────────────────────────────────────────────
-
+// ── tests ───────────────────────────────────────────────────────────
 
