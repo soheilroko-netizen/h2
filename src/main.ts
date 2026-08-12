@@ -92,6 +92,8 @@ const statusCard = document.querySelector('.status-card')!;
 const pingValue = document.getElementById('ping-value')!;
 const trafficUpValue = document.getElementById('traffic-up-value')!;
 const trafficDownValue = document.getElementById('traffic-down-value')!;
+const trafficUpTotal = document.getElementById('traffic-up-total')!;
+const trafficDownTotal = document.getElementById('traffic-down-total')!;
 const splitIndicator = document.getElementById('split-indicator')!;
 const sparklineUp = document.getElementById('sparkline-up') as HTMLCanvasElement;
 const sparklineDown = document.getElementById('sparkline-down') as HTMLCanvasElement;
@@ -343,6 +345,8 @@ async function updateStatus() {
 
     trafficUpValue.textContent = s.running ? formatSpeed(s.traffic_up) : '0 B/s';
     trafficDownValue.textContent = s.running ? formatSpeed(s.traffic_down) : '0 B/s';
+    trafficUpTotal.textContent = `Total: ${formatBytes(s.total_up)}`;
+    trafficDownTotal.textContent = `Total: ${formatBytes(s.total_down)}`;
     
     // Update sparklines
     if (s.running) {

@@ -274,6 +274,15 @@
   opacity: 0.8;
 }
 
+.metric-total {
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.75;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .metric-label {
   font-size: 11px;
   text-transform: uppercase;
