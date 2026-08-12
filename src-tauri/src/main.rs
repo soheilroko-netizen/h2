@@ -4,6 +4,7 @@
 mod config;
 mod proxy;
 mod geofiles;
+mod doh;
 
 use config::{Config, SplitRule};
 #[cfg(target_os = "windows")]
@@ -484,6 +485,23 @@ fn list_profiles() -> Result<Vec<String>, String> {
     Ok(profiles)
 }
 
+// ── DoH DNS toggle (independent of VPN) ──────────────────────────
+
+#[tauri::command]
+fn doh_set() -> Result<String, String> {
+    doh::set_doh_dns().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn doh_clear() -> Result<String, String> {
+    doh::clear_doh_dns().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn doh_active() -> Result<bool, String> {
+    doh::doh_active().map_err(|e| e.to_string())
+}
+
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
         .title("dakal")
@@ -649,6 +667,9 @@ fn main() {
             can_download_geofiles,
             get_h2_speeds,
             apply_h2_preset,
+            doh_set,
+            doh_clear,
+            doh_active,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");

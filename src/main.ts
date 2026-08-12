@@ -126,6 +126,7 @@ const settingMtu = document.getElementById('setting-mtu') as HTMLInputElement;
 const settingSplitRules = document.getElementById('setting-split-rules') as HTMLTextAreaElement;
 const btnSaveSettings = document.getElementById('btn-save-settings')!;
 const btnUpdateGeofiles = document.getElementById('btn-update-geofiles')!;
+const btnDoh = document.getElementById('btn-doh') as HTMLButtonElement;
 
 // ── Helpers ──────────────────────────────────────────────────
 const SERVER_FLAGS: Record<string, string> = {
@@ -639,6 +640,36 @@ btnUpdateGeofiles.addEventListener('click', async () => {
   }
 });
 
+// ── DoH DNS toggle ───────────────────────────────────────────
+let dohEnabled = false;
+
+async function updateDohButton() {
+  try {
+    dohEnabled = await invoke<boolean>('doh_active');
+  } catch {
+    dohEnabled = false;
+  }
+  btnDoh.classList.toggle('active', dohEnabled);
+  btnDoh.title = dohEnabled
+    ? 'DoH DNS is active — click to restore DHCP DNS'
+    : 'Set DNS to private DoH servers';
+}
+
+btnDoh.addEventListener('click', async () => {
+  try {
+    if (dohEnabled) {
+      await invoke('doh_clear');
+      showMessage('DNS restored to DHCP', false);
+    } else {
+      await invoke('doh_set');
+      showMessage('DoH DNS set', false);
+    }
+    await updateDohButton();
+  } catch (e) {
+    showMessage(`DoH DNS failed: ${e}`, true);
+  }
+});
+
 // ── Events ───────────────────────────────────────────────────
 listen('proxy-log', (event: { payload: string }) => {
   // Update inline log if expanded
@@ -738,6 +769,8 @@ document.querySelectorAll('.h2-preset-card').forEach(card => {
   } catch {
     updateSplitPresetUI('full');
   }
+
+  await updateDohButton();
 })();
 
 setInterval(updateStatus, STATUS_INTERVAL_MS);
