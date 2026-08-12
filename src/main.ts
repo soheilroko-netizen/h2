@@ -10,8 +10,8 @@ const UPTIME_INTERVAL_MS = 1000;
 /** Ping bars / triangle turn red at or above this latency */
 const HIGH_PING_MS = 300;
 /** Window sizes for settings panel open/closed (must match create_main_window in Rust) */
-const WINDOW_HEIGHT_CLOSED = 720;
-const WINDOW_HEIGHT_OPEN = 620;
+const WINDOW_HEIGHT_CLOSED = 780;
+const WINDOW_HEIGHT_OPEN = 680;
 const WINDOW_WIDTH = 500;
 /** flagcdn.com 16x12 flag URL builder */
 const FLAG_URL = (code: string) => `https://flagcdn.com/16x12/${code}.png`;

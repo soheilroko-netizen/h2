@@ -293,7 +293,17 @@ impl ProxyManager {
             matches!(r.pattern.as_str(), "*.battle.net" | "*.blizzard.com" | "*.worldofwarcraft.com" | "*.akamaized.net")
         });
         if is_wow_mode && !has_wow_rules {
-            let wow_domains = ["battle.net", "blizzard.com", "worldofwarcraft.com", "akamaized.net"];
+            let wow_domains = [
+                "battle.net",
+                "blizzard.com",
+                "worldofwarcraft.com",
+                "akamaized.net",
+                // Discord (domain_suffix matches bare domain + all subdomains)
+                "discord.com",
+                "discord.gg",
+                "discordapp.com",
+                "discordapp.net",
+            ];
             let arr = route_rules.as_array_mut().unwrap();
             for domain in wow_domains {
                 arr.insert(3, serde_json::json!({"domain_suffix": [domain], "outbound": default_direct}));

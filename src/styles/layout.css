@@ -7,7 +7,7 @@
   border-radius: 16px;
   padding: 20px;
   width: 450px;
-  max-height: 90vh;
+  max-height: 96vh;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
 }
