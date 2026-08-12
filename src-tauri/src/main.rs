@@ -197,13 +197,25 @@ fn set_mode(mode: String, state: State<AppState>) -> Result<String, String> {
     if state.proxy.lock().unwrap().is_running() {
         let _ = stop_proxy_inner(&state);
     }
-    config::save_mode(&mode).map_err(|e| e.to_string())?;
+    // Keep current server, swap protocol suffix
+    let current = config::load_profile();
+    let server = current
+        .strip_suffix("-h2")
+        .or_else(|| current.strip_suffix("-stls"))
+        .unwrap_or("netherlands-1");
+    let new_profile = match mode.as_str() {
+        "shadowtls" => format!("{server}-stls"),
+        "hysteria2" => format!("{server}-h2"),
+        _ => return Err("Invalid mode".into()),
+    };
+    config::save_profile(&new_profile).map_err(|e| e.to_string())?;
     Ok(format!("Mode set to '{}'", mode))
 }
 
 #[tauri::command]
 fn get_mode() -> Result<String, String> {
-    Ok(config::load_mode())
+    let profile = config::load_profile();
+    Ok(config::parse_profile(&profile).protocol.to_string())
 }
 
 #[tauri::command]
