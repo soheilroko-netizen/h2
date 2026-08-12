@@ -167,7 +167,7 @@ impl ProxyManager {
         // Start sing-box with hidden window on Windows
         #[cfg(target_os = "windows")]
         let child = {
-            no_window(Command::new(&exe))
+            no_window(&mut Command::new(&exe))
                 .arg("run")
                 .arg("-c")
                 .arg(&cfg_path)
