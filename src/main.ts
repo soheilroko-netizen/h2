@@ -34,8 +34,6 @@ interface FullStatus {
   traffic_down: number;
   total_up: number;
   total_down: number;
-  vpn_up: number;
-  vpn_down: number;
   log_lines: string[];
 }
 
@@ -96,8 +94,6 @@ const trafficUpValue = document.getElementById('traffic-up-value')!;
 const trafficDownValue = document.getElementById('traffic-down-value')!;
 const trafficUpTotal = document.getElementById('traffic-up-total')!;
 const trafficDownTotal = document.getElementById('traffic-down-total')!;
-const trafficUpVpn = document.getElementById('traffic-up-vpn')!;
-const trafficDownVpn = document.getElementById('traffic-down-vpn')!;
 
 const sparklineUp = document.getElementById('sparkline-up') as HTMLCanvasElement;
 const sparklineDown = document.getElementById('sparkline-down') as HTMLCanvasElement;
@@ -354,8 +350,6 @@ async function updateStatus() {
     trafficDownValue.textContent = s.running ? formatSpeed(s.traffic_down) : '0 B/s';
     trafficUpTotal.textContent = `Total: ${formatBytes(s.total_up)}`;
     trafficDownTotal.textContent = `Total: ${formatBytes(s.total_down)}`;
-    trafficUpVpn.textContent = `VPN: ${formatBytes(s.vpn_up)}`;
-    trafficDownVpn.textContent = `VPN: ${formatBytes(s.vpn_down)}`;
     
     // Update sparklines
     if (s.running) {
