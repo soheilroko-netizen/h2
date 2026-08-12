@@ -3,6 +3,26 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import './styles.css';
 
+// ── Constants ────────────────────────────────────────────────
+const PING_INTERVAL_MS = 5000;
+const STATUS_INTERVAL_MS = 2000;
+const UPTIME_INTERVAL_MS = 1000;
+/** Ping bars / triangle turn red at or above this latency */
+const HIGH_PING_MS = 300;
+/** Window sizes for settings panel open/closed (must match create_main_window in Rust) */
+const WINDOW_HEIGHT_CLOSED = 720;
+const WINDOW_HEIGHT_OPEN = 620;
+const WINDOW_WIDTH = 500;
+/** flagcdn.com 16x12 flag URL builder */
+const FLAG_URL = (code: string) => `https://flagcdn.com/16x12/${code}.png`;
+/** H2 bandwidth presets shared by UI and backend (keep in sync with apply_h2_preset) */
+const H2_PRESETS: Record<string, { up: number; down: number }> = {
+  adsl: { up: 4, down: 16 },
+  '4g': { up: 15, down: 30 },
+  '5g': { up: 40, down: 80 },
+  max: { up: 80, down: 120 },
+};
+
 // ── Types ────────────────────────────────────────────────────
 interface FullStatus {
   running: boolean;
@@ -15,6 +35,12 @@ interface FullStatus {
   total_up: number;
   total_down: number;
   log_lines: string[];
+}
+
+interface SplitRule {
+  pattern: string;
+  process_names?: string[];
+  folder_paths?: string[];
 }
 
 interface Config {
@@ -100,17 +126,15 @@ const btnSaveSettings = document.getElementById('btn-save-settings')!;
 const btnUpdateGeofiles = document.getElementById('btn-update-geofiles')!;
 
 // ── Helpers ──────────────────────────────────────────────────
+const SERVER_FLAGS: Record<string, string> = {
+  netherlands: 'nl',
+  germany: 'de',
+  finland: 'fi',
+};
+
 function getServerFlag(server: string): string {
-  if (server.indexOf('netherlands') !== -1) {
-    return '<img src="https://flagcdn.com/16x12/nl.png" style="margin-right:4px;vertical-align:middle;" alt="NL" />';
-  }
-  if (server.indexOf('germany') !== -1 || server.indexOf('187.127.83.147') !== -1) {
-    return '<img src="https://flagcdn.com/16x12/de.png" style="margin-right:4px;vertical-align:middle;" alt="DE" />';
-  }
-  if (server.indexOf('finland') !== -1 || server.indexOf('62.238.60.136') !== -1) {
-    return '<img src="https://flagcdn.com/16x12/fi.png" style="margin-right:4px;vertical-align:middle;" alt="FI" />';
-  }
-  return '';
+  const code = SERVER_FLAGS[server.split('-')[0]] || '';
+  return code ? `<img src="${FLAG_URL(code)}" style="margin-right:4px;vertical-align:middle;" alt="${code.toUpperCase()}" />` : '';
 }
 
 function formatBytes(bytes: number): string {
@@ -220,7 +244,7 @@ async function doPing() {
     // Update triangle for 300+ ms
     const triangle = document.getElementById('ping-triangle');
     if (triangle) {
-      triangle.classList.toggle('active', pingMs >= 300);
+      triangle.classList.toggle('active', pingMs >= HIGH_PING_MS);
     }
   } catch {
     pingValue.textContent = '-';
@@ -235,7 +259,7 @@ async function doPing() {
 function startPingLoop() {
   stopPingLoop();
   doPing();
-  pingTimer = setInterval(doPing, 5000);
+  pingTimer = setInterval(doPing, PING_INTERVAL_MS);
 }
 
 function stopPingLoop() {
@@ -255,7 +279,7 @@ function startUptimeTimer() {
       const elapsed = uptimeStartSecs + Math.floor((Date.now() - uptimeRefresh) / 1000);
       btnStartText.textContent = formatUptime(elapsed);
     }
-  }, 1000);
+  }, UPTIME_INTERVAL_MS);
 }
 
 function stopUptimeTimer() {
@@ -342,25 +366,18 @@ async function updateStatus() {
 }
 
 // ── Log ──────────────────────────────────────────────────────
-async function refreshLog() {
+async function renderLog(el: HTMLElement) {
   try {
     const s = await invoke<FullStatus>('get_full_status');
-    logContent.textContent = s.log_lines.join('\n') || 'No log available';
-    logContent.scrollTop = logContent.scrollHeight;
+    el.textContent = s.log_lines.join('\n') || 'No log available';
+    el.scrollTop = el.scrollHeight;
   } catch {
-    logContent.textContent = 'Failed to load log.';
+    el.textContent = 'Failed to load log.';
   }
 }
 
-async function refreshInlineLog() {
-  try {
-    const s = await invoke<FullStatus>('get_full_status');
-    inlineLogContent.textContent = s.log_lines.join('\n') || 'No log available';
-    inlineLogContent.scrollTop = inlineLogContent.scrollHeight;
-  } catch {
-    inlineLogContent.textContent = 'Failed to load log.';
-  }
-}
+const refreshLog = () => renderLog(logContent);
+const refreshInlineLog = () => renderLog(inlineLogContent);
 
 // ── Inline log toggle ────────────────────────────────────────
 logToggle.addEventListener('click', () => {
@@ -424,7 +441,7 @@ function updateServerSelectorUI(server: string) {
   serverSelectorText.textContent = display;
   
   // Update active option
-  serverSelectorOptions.querySelectorAll('.custom-select-option').forEach(opt => {
+  serverSelectorOptions.querySelectorAll<HTMLElement>('.custom-select-option').forEach(opt => {
     opt.classList.toggle('active', opt.dataset.value === server);
   });
 }
@@ -441,7 +458,7 @@ document.addEventListener('click', (e) => {
   }
 });
 
-serverSelectorOptions.querySelectorAll('.custom-select-option').forEach(opt => {
+serverSelectorOptions.querySelectorAll<HTMLElement>('.custom-select-option').forEach(opt => {
   opt.addEventListener('click', async () => {
     currentServer = opt.dataset.value || 'netherlands-1';
     serverSelectorWrapper.classList.remove('open');
@@ -468,10 +485,11 @@ function updateProtocolTabs(protocol: 'h2' | 'stls') {
       statusCard.classList.add(`protocol-${protocol}`);
     }
 
-    function updateH2PresetVisibility(protocol: 'h2' | 'stls') {
+function updateH2PresetVisibility(protocol: 'h2' | 'stls') {
   const h2Sel = document.getElementById('h2-preset-selector');
   if (h2Sel) h2Sel.style.display = protocol === 'h2' ? 'block' : 'none';
   
+  // Split preset selector always visible
   const splitSel = document.getElementById('split-preset-selector');
   if (splitSel) splitSel.style.display = 'block';
 }
@@ -486,12 +504,11 @@ async function loadH2PresetSelection() {
     // Remove active class from all cards
     cards.forEach(card => card.classList.remove('active'));
     
-    // Set active card based on speeds
-    let activePreset = '5g'; // default
-    if (up_mbps === 4 && down_mbps === 16) activePreset = 'adsl';
-    else if (up_mbps === 15 && down_mbps === 30) activePreset = '4g';
-    else if (up_mbps === 40 && down_mbps === 80) activePreset = '5g';
-    else if (up_mbps === 80 && down_mbps === 120) activePreset = 'max';
+    // Set active card based on speeds (default '5g')
+    let activePreset = '5g';
+    for (const [name, { up, down }] of Object.entries(H2_PRESETS)) {
+      if (up_mbps === up && down_mbps === down) { activePreset = name; break; }
+    }
     
     const activeCard = document.querySelector(`.h2-preset-card[data-preset="${activePreset}"]`);
     if (activeCard) activeCard.classList.add('active');
@@ -584,9 +601,9 @@ btnSettingsToggle.addEventListener('click', async () => {
 
   const appWindow = getCurrentWindow();
   if (visible) {
-    await appWindow.setSize(new LogicalSize(500, 620));
+    await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, WINDOW_HEIGHT_OPEN));
   } else {
-    await appWindow.setSize(new LogicalSize(500, 720));
+    await appWindow.setSize(new LogicalSize(WINDOW_WIDTH, WINDOW_HEIGHT_CLOSED));
     loadSettings();
   }
 });
@@ -720,4 +737,4 @@ document.querySelectorAll('.h2-preset-card').forEach(card => {
   await updateStatus();
 })();
 
-setInterval(updateStatus, 2000);
+setInterval(updateStatus, STATUS_INTERVAL_MS);

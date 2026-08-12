@@ -49,6 +49,17 @@ fn sing_box_client() -> &'static reqwest::blocking::Client {
     })
 }
 
+/// Clash API (sing-box experimental) endpoint serving traffic stats
+const CLASH_API_BASE: &str = "http://127.0.0.1:9097";
+/// Clash API secret, must match the `secret` set in build_vpn_config()
+const CLASH_API_SECRET: &str = "dakal";
+/// Max log file lines returned to the UI
+const LOG_LINE_LIMIT: usize = 100;
+/// Minimum seconds between traffic samples before rate is reported
+const TRAFFIC_SAMPLE_MIN_SECS: f64 = 0.5;
+/// Ping warmup + measurement target (HTTP 204, no body)
+const PING_TARGET: &str = "http://www.gstatic.com/generate_204";
+
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -77,25 +88,9 @@ fn update_tray_state(app: &tauri::AppHandle) {
     drop(state);
 
     let profile = config::load_profile();
-    
-    // Parse profile: "netherlands-1-h2" -> server="Netherlands #1", protocol="Hysteria2"
-    let (server_name, protocol_name) = if profile.starts_with("netherlands") {
-        let proto = if profile.ends_with("-h2") { "Hysteria2" } else { "ShadowTLS" };
-        ("Netherlands #1", proto)
-    } else if profile.starts_with("germany") {
-        let proto = if profile.ends_with("-h2") { "Hysteria2" } else { "ShadowTLS" };
-        // Check if it's germany-3
-        if profile.contains("germany-3") {
-            ("Germany #3", proto)
-        } else {
-            ("Germany #1", proto)
-        }
-    } else if profile.starts_with("finland") {
-        let proto = if profile.ends_with("-h2") { "Hysteria2" } else { "ShadowTLS" };
-        ("Finland #1", proto)
-    } else {
-        ("Unknown", "Unknown")
-    };
+    let info = config::parse_profile(&profile);
+    let server_name = info.server_name;
+    let protocol_name = if info.protocol == "hysteria2" { "Hysteria2" } else { "ShadowTLS" };
 
     let tooltip = if running {
         format!("dakal-tls — {} | {} (connected)", server_name, protocol_name)
@@ -229,7 +224,7 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     drop(proxy);
 
     let profile = config::load_profile();
-    let mode = if profile.ends_with("-h2") { "hysteria2" } else { "shadowtls" };
+    let mode = config::parse_profile(&profile).protocol;
 
     if !running {
         return Ok(FullStatus {
@@ -254,7 +249,7 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
         };
         if needs_refresh {
             if let Ok(content) = std::fs::read_to_string(&log_path) {
-                let mut lines: Vec<String> = content.lines().rev().take(100).map(String::from).collect();
+                let mut lines: Vec<String> = content.lines().rev().take(LOG_LINE_LIMIT).map(String::from).collect();
                 lines.reverse();
                 cache.0 = std::time::SystemTime::now();
                 cache.1 = lines;
@@ -268,8 +263,8 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     let (cur_up, cur_down) = if running {
         let client = sing_box_client();
         client
-            .get("http://127.0.0.1:9097/connections")
-            .header("Authorization", "Bearer dakal")
+            .get(format!("{CLASH_API_BASE}/connections"))
+            .header("Authorization", format!("Bearer {CLASH_API_SECRET}"))
             .timeout(std::time::Duration::from_secs(1))
             .send()
             .ok()
@@ -297,7 +292,7 @@ fn get_full_status(state: State<AppState>) -> Result<FullStatus, String> {
     let mut prev_sample = state.prev_sample.lock().unwrap();
     let (traffic_up, traffic_down) = if let Some(prev) = prev_sample.as_ref() {
         let elapsed = now.duration_since(prev.time).as_secs_f64();
-        if elapsed > 0.5 {
+        if elapsed > TRAFFIC_SAMPLE_MIN_SECS {
             let up_delta = cur_up.saturating_sub(prev.total.0);
             let down_delta = cur_down.saturating_sub(prev.total.1);
             *prev_sample = Some(TrafficSample { total: (cur_up, cur_down), time: now });
@@ -347,13 +342,12 @@ fn real_ping(state: State<AppState>) -> Result<String, String> {
         return Err("VPN not connected".into());
     }
 
-    let target = "http://www.gstatic.com/generate_204";
-    if let Err(e) = state.http_client.get(target).send() {
+    if let Err(e) = state.http_client.get(PING_TARGET).send() {
         return Err(format!("warmup failed: {}", e));
     }
 
     let start = Instant::now();
-    let resp = state.http_client.get(target).send().map_err(|e| format!("measure failed: {}", e))?;
+    let resp = state.http_client.get(PING_TARGET).send().map_err(|e| format!("measure failed: {}", e))?;
     if !resp.status().is_success() && resp.status().as_u16() != 204 {
         return Err(format!("bad status: {}", resp.status()));
     }
@@ -390,14 +384,9 @@ fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String
         }
     }
     
-    // Validate split mode
-    if !["full", "iran", "wow", "custom"].contains(&split_mode.as_str()) {
+    // Validate split mode (backend supports full/wow; custom accepted as-is)
+    if !["full", "wow", "custom"].contains(&split_mode.as_str()) {
         return Err("Invalid split mode".into());
-    }
-    
-    // If iran mode and geofiles don't exist, download them
-    if split_mode == "iran" && !geofiles::geofiles_exist() {
-        geofiles::download_geofiles().map_err(|e| format!("Failed to download geofiles: {}", e))?;
     }
     
     // Save split tunnel settings
@@ -467,18 +456,20 @@ fn set_profile(app: tauri::AppHandle, state: State<AppState>, profile: String) -
     Ok(())
 }
 
+/// All selectable server variants (location + instance number)
+const PROFILE_SERVERS: [&str; 4] = ["netherlands-1", "germany-1", "germany-3", "finland-1"];
+/// Protocol suffixes mapped to config modes
+const PROFILE_MODES: [&str; 2] = ["h2", "stls"];
+
 #[tauri::command]
 fn list_profiles() -> Result<Vec<String>, String> {
-    Ok(vec![
-        "netherlands-1-h2".to_string(),
-        "netherlands-1-stls".to_string(),
-        "germany-1-h2".to_string(),
-        "germany-1-stls".to_string(),
-        "germany-3-h2".to_string(),
-        "germany-3-stls".to_string(),
-        "finland-1-h2".to_string(),
-        "finland-1-stls".to_string(),
-    ])
+    let mut profiles = Vec::with_capacity(PROFILE_SERVERS.len() * PROFILE_MODES.len());
+    for server in PROFILE_SERVERS {
+        for mode in PROFILE_MODES {
+            profiles.push(format!("{server}-{mode}"));
+        }
+    }
+    Ok(profiles)
 }
 
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {

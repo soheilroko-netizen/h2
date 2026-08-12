@@ -24,6 +24,13 @@ fn no_window(cmd: &mut Command) -> &mut Command {
 // ── sing-box config builder ────────────────────────────────────
 // Uses serde_json::json! instead of 30+ struct definitions
 
+/// Fallback bypass range when the server hostname cannot be resolved
+const TUN_FALLBACK_CIDR: &str = "198.18.0.0/15";
+/// Static placeholder IP used when no server IP was resolved
+const TUN_FALLBACK_IP: &str = "198.18.0.0";
+/// Number of bootstrap route rules (sniff, dns, bypass) before split/WoW rules
+const ROUTE_RULES_BOOTSTRAP_COUNT: usize = 3;
+
 pub struct ProxyManager {
     child: Arc<Mutex<Option<Child>>>,
     config_dir: PathBuf,
@@ -109,7 +116,7 @@ impl ProxyManager {
 
         // Re-read config from active mode
         self.config = crate::config::get_active_config();
-        self.debug_log(format!("config loaded"));
+        self.debug_log("config loaded");
         
         // Clear DNS cache on profile change to prevent IP reuse
         *self.dns_cache.lock().unwrap() = None;
@@ -128,7 +135,7 @@ impl ProxyManager {
             fs::write(&cfg_path, &cfg_json)?;
             self.debug_log(format!("config written to {}", cfg_path.display()));
         } else {
-            self.debug_log(format!("config unchanged, skipping write"));
+            self.debug_log("config unchanged, skipping write");
         }
 
         // Validate config before launch (no window)
@@ -153,22 +160,19 @@ impl ProxyManager {
         }
         self.debug_log("config check passed");
 
-        let log_path = self.config_dir.join("sing-box.log");
-        let log_file = fs::File::create(&log_path)?;
+        #[cfg(target_os = "windows")]
+        let _log_file = fs::File::create(self.config_dir.join("sing-box.log"))?;
 
         self.debug_log("starting sing-box run...");
         // Start sing-box with hidden window on Windows
         #[cfg(target_os = "windows")]
         let child = {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            Command::new(&exe)
+            no_window(Command::new(&exe))
                 .arg("run")
                 .arg("-c")
                 .arg(&cfg_path)
-                .creation_flags(CREATE_NO_WINDOW)
-                .stdout(Stdio::from(log_file.try_clone()?))
-                .stderr(Stdio::from(log_file))
+                .stdout(Stdio::from(_log_file.try_clone()?))
+                .stderr(Stdio::from(_log_file))
                 .spawn()?
         };
         self.debug_log("sing-box process spawned");
@@ -227,12 +231,12 @@ impl ProxyManager {
         };
 
         let bypass_cidrs: Vec<String> = if stls_ips.is_empty() {
-            vec!["198.18.0.0/15".into()]
+            vec![TUN_FALLBACK_CIDR.into()]
         } else {
             stls_ips.iter().map(|ip| format!("{ip}/32")).collect()
         };
 
-        let stls_ip = stls_ips.first().cloned().unwrap_or_else(|| "198.18.0.0".into());
+        let stls_ip = stls_ips.first().cloned().unwrap_or_else(|| TUN_FALLBACK_IP.into());
         let h2_mode = c.mode == "hysteria2";
         let final_outbound = if h2_mode { "h2-out" } else { "ss-out" };
 
@@ -285,7 +289,7 @@ impl ProxyManager {
         }
 
         // For WoW mode, add hardcoded WoW domains
-        let mut has_wow_rules = c.split_rules.iter().any(|r| {
+        let has_wow_rules = c.split_rules.iter().any(|r| {
             matches!(r.pattern.as_str(), "*.battle.net" | "*.blizzard.com" | "*.worldofwarcraft.com" | "*.akamaized.net")
         });
         if is_wow_mode && !has_wow_rules {
