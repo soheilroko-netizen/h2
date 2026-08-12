@@ -34,6 +34,8 @@ interface FullStatus {
   traffic_down: number;
   total_up: number;
   total_down: number;
+  vpn_up: number;
+  vpn_down: number;
   log_lines: string[];
 }
 
@@ -94,7 +96,9 @@ const trafficUpValue = document.getElementById('traffic-up-value')!;
 const trafficDownValue = document.getElementById('traffic-down-value')!;
 const trafficUpTotal = document.getElementById('traffic-up-total')!;
 const trafficDownTotal = document.getElementById('traffic-down-total')!;
-const splitIndicator = document.getElementById('split-indicator')!;
+const trafficUpVpn = document.getElementById('traffic-up-vpn')!;
+const trafficDownVpn = document.getElementById('traffic-down-vpn')!;
+
 const sparklineUp = document.getElementById('sparkline-up') as HTMLCanvasElement;
 const sparklineDown = document.getElementById('sparkline-down') as HTMLCanvasElement;
 
@@ -330,9 +334,12 @@ async function updateStatus() {
     if (s.running && protocolIndicator) {
       const isH2 = s.mode === 'hysteria2';
       protocolIndicator.textContent = isH2 ? 'UDP' : 'TCP';
+      protocolIndicator.classList.toggle('protocol-udp', isH2);
+      protocolIndicator.classList.toggle('protocol-tcp', !isH2);
       protocolIndicator.style.display = 'inline-block';
     } else if (protocolIndicator) {
       protocolIndicator.style.display = 'none';
+      protocolIndicator.classList.remove('protocol-udp', 'protocol-tcp');
     }
 
     if (!s.running) pingValue.textContent = '-';
@@ -347,6 +354,8 @@ async function updateStatus() {
     trafficDownValue.textContent = s.running ? formatSpeed(s.traffic_down) : '0 B/s';
     trafficUpTotal.textContent = `Total: ${formatBytes(s.total_up)}`;
     trafficDownTotal.textContent = `Total: ${formatBytes(s.total_down)}`;
+    trafficUpVpn.textContent = `VPN: ${formatBytes(s.vpn_up)}`;
+    trafficDownVpn.textContent = `VPN: ${formatBytes(s.vpn_down)}`;
     
     // Update sparklines
     if (s.running) {
@@ -537,16 +546,6 @@ async function loadSettings() {
   }
 }
 
-function updateSplitIndicator(splitMode: string) {
-  const isActive = splitMode !== 'full';
-  splitIndicator.classList.toggle('active', isActive);
-  
-  let tooltipText = 'Full tunnel';
-  if (splitMode === 'wow') tooltipText = 'Split tunnel: WoW Split (Blizzard/Battle.net only)';
-  
-  splitIndicator.setAttribute('title', tooltipText);
-}
-
 // Check geofiles cooldown and toggle button
 async function checkGeofilesCooldown() {
   try {
@@ -567,8 +566,6 @@ function updateSplitPresetUI(preset: string) {
 
   // Geofiles button hidden for all modes
   btnUpdateGeofiles.style.display = 'none';
-
-  updateSplitIndicator(preset);
 }
 
 // Split preset card handlers
@@ -739,6 +736,14 @@ document.querySelectorAll('.h2-preset-card').forEach(card => {
 (async () => {
   await loadProfile();
   await updateStatus();
+
+  // Highlight the active split preset card on launch (full tunnel by default)
+  try {
+    const splitSettings = await invoke<{ split_mode: string }>('get_split_settings');
+    updateSplitPresetUI(splitSettings.split_mode || 'full');
+  } catch {
+    updateSplitPresetUI('full');
+  }
 })();
 
 setInterval(updateStatus, STATUS_INTERVAL_MS);

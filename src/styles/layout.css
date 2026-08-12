@@ -154,6 +154,18 @@
   letter-spacing: 0.5px;
 }
 
+.protocol-indicator.protocol-udp {
+  background: rgba(74, 222, 128, 0.2) !important;
+  color: #4ade80 !important;
+  border: 1px solid rgba(74, 222, 128, 0.4);
+}
+
+.protocol-indicator.protocol-tcp {
+  background: rgba(250, 204, 21, 0.2) !important;
+  color: #facc15 !important;
+  border: 1px solid rgba(250, 204, 21, 0.4);
+}
+
 .protocol-tabs .tab {
   flex: 1;
   padding: 8px 12px;
@@ -283,40 +295,17 @@
   white-space: nowrap;
 }
 
+.metric-total.vpn {
+  color: var(--accent-h2);
+  opacity: 0.7;
+}
+
 .metric-label {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-secondary);
   margin-top: 4px;
-}
-
-/* ── Split Tunnel Indicator ──────────────────────────────── */
-
-.split-indicator {
-  width: 20px;
-  height: 20px;
-  margin-left: 8px;
-  opacity: 0.4;
-  color: var(--text-secondary);
-  transition: all 0.3s;
-  cursor: help;
-}
-
-.split-indicator.active {
-  opacity: 1;
-  color: var(--accent-h2);
-  filter: drop-shadow(0 0 6px var(--accent-h2));
-  animation: pulse-split 2s ease-in-out infinite;
-}
-
-@keyframes pulse-split {
-  0%, 100% { 
-    filter: drop-shadow(0 0 4px var(--accent-h2)); 
-  }
-  50% { 
-    filter: drop-shadow(0 0 10px var(--accent-h2)); 
-  }
 }
 
 /* ── Controls Section ────────────────────────────────────── */
