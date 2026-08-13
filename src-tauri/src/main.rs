@@ -3,7 +3,6 @@
 
 mod config;
 mod proxy;
-mod geofiles;
 mod doh;
 
 use config::{Config, SplitRule};
@@ -438,15 +437,9 @@ fn get_split_settings() -> Result<serde_json::Value, String> {
     }))
 }
 
-#[tauri::command]
-fn update_geofiles() -> Result<(), String> {
-    geofiles::download_geofiles().map_err(|e| format!("Failed to download geofiles: {}", e))
-}
 
-#[tauri::command]
-fn can_download_geofiles() -> Result<bool, String> {
-    Ok(config::can_download_geofiles())
-}
+
+
 
 #[tauri::command]
 fn get_profile() -> Result<String, String> {
@@ -663,8 +656,7 @@ fn main() {
             set_profile,
             list_profiles,
             update_settings,
-            update_geofiles,
-            can_download_geofiles,
+
             get_h2_speeds,
             apply_h2_preset,
             doh_set,

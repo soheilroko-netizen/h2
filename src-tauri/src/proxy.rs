@@ -290,7 +290,7 @@ impl ProxyManager {
 
         // For WoW mode, add hardcoded WoW domains
         let has_wow_rules = c.split_rules.iter().any(|r| {
-            matches!(r.pattern.as_str(), "*.battle.net" | "*.blizzard.com" | "*.worldofwarcraft.com" | "*.akamaized.net" | "geosite:discord")
+            matches!(r.pattern.as_str(), "*.battle.net" | "*.blizzard.com" | "*.worldofwarcraft.com" | "*.akamaized.net" | "*.discord.com" | "*.discord.gg" | "*.discordapp.com" | "*.discordapp.net")
         });
         if is_wow_mode && !has_wow_rules {
             let wow_domains = [
@@ -298,17 +298,10 @@ impl ProxyManager {
                 "blizzard.com",
                 "worldofwarcraft.com",
                 "akamaized.net",
-                "geosite:discord",
             ];
             let arr = route_rules.as_array_mut().unwrap();
             for domain in wow_domains {
-                // geosite: prefix means use geosite category from geosite.db
-                if domain.starts_with("geosite:") {
-                    let category = &domain[8..];
-                    arr.insert(3, serde_json::json!({"geosite": [category], "outbound": default_direct}));
-                } else {
-                    arr.insert(3, serde_json::json!({"domain_suffix": [domain], "outbound": default_direct}));
-                }
+                arr.insert(3, serde_json::json!({"domain_suffix": [domain], "outbound": default_direct}));
             }
         }
 
