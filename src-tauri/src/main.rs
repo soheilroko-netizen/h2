@@ -63,6 +63,7 @@ const PING_TARGET: &str = "http://www.gstatic.com/generate_204";
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tokio::task;
 
 use proxy::ProxyManager;
 
@@ -481,18 +482,18 @@ fn list_profiles() -> Result<Vec<String>, String> {
 // ── DoH DNS toggle (independent of VPN) ──────────────────────────
 
 #[tauri::command]
-fn doh_set() -> Result<String, String> {
-    doh::set_doh_dns().map_err(|e| e.to_string())
+async fn doh_set() -> Result<String, String> {
+    doh::set_doh_dns().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn doh_clear() -> Result<String, String> {
-    doh::clear_doh_dns().map_err(|e| e.to_string())
+async fn doh_clear() -> Result<String, String> {
+    doh::clear_doh_dns().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn doh_active() -> Result<bool, String> {
-    doh::doh_active().map_err(|e| e.to_string())
+async fn doh_active() -> Result<bool, String> {
+    doh::doh_active().await.map_err(|e| e.to_string())
 }
 
 fn create_main_window(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {

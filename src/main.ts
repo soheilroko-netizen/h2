@@ -650,8 +650,9 @@ async function updateDohButton() {
     dohEnabled = false;
   }
   btnDoh.classList.toggle('active', dohEnabled);
+  btnDoh.textContent = dohEnabled ? 'Reset DNS' : 'Set DNS';
   btnDoh.title = dohEnabled
-    ? 'DoH DNS is active — click to restore DHCP DNS'
+    ? 'Reset DNS to DHCP'
     : 'Set DNS to private DoH servers';
 }
 

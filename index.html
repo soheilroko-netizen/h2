@@ -40,13 +40,13 @@
             </div>
             <button id="btn-settings-toggle" class="btn-small">Settings</button>
             <button id="btn-main-log" class="btn-small">Log</button>
-            <button id="btn-doh" class="btn-small" title="Set DNS to private DoH servers">DoH DNS</button>
           </div>
 
           <!-- Protocol Tabs -->
           <div class="protocol-tabs">
             <button class="tab active" data-protocol="h2">Hysteria2</button>
             <button class="tab" data-protocol="stls">ShadowTLS</button>
+            <button id="btn-doh" class="btn-small" title="Set DNS to private DoH servers">Set DNS</button>
           </div>
         </div>
 
@@ -139,15 +139,15 @@
           </div>
           <div class="metric-tile">
             <div class="metric-value" id="traffic-up-value">0 B/s</div>
-            <div class="metric-total" id="traffic-up-total">Total: 0 B</div>
             <canvas class="sparkline" id="sparkline-up" width="100" height="24"></canvas>
             <div class="metric-label">↑ Upload</div>
+            <div class="metric-total" id="traffic-up-total">Total: 0 B</div>
           </div>
           <div class="metric-tile">
             <div class="metric-value" id="traffic-down-value">0 B/s</div>
-            <div class="metric-total" id="traffic-down-total">Total: 0 B</div>
             <canvas class="sparkline" id="sparkline-down" width="100" height="24"></canvas>
             <div class="metric-label">↓ Download</div>
+            <div class="metric-total" id="traffic-down-total">Total: 0 B</div>
           </div>
         </div>
 
