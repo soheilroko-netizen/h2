@@ -236,18 +236,13 @@ impl ProxyManager {
         let h2_mode = c.mode == "hysteria2";
         let final_outbound = if h2_mode { "h2-out" } else { "ss-out" };
 
-        // Three routing presets: full, wow, custom
-        let is_full_mode = c.split_mode == "full";
+        // WoW Split mode: whitelist (only listed domains go through VPN)
         let is_wow_mode = c.split_mode == "wow";
-        let is_custom_mode = c.split_mode == "custom";
         
         let (route_final, default_direct) = if is_wow_mode {
             ("direct", final_outbound)  // default = direct, WoW domains → VPN
-        } else if is_full_mode {
-            (final_outbound, "direct")  // default = VPN, exceptions → direct
         } else {
-            // custom mode: user rules define routing
-            (final_outbound, "direct")
+            (final_outbound, "direct")  // default = VPN, listed domains → direct
         };
 
         // Build outbounds
@@ -264,45 +259,34 @@ impl ProxyManager {
         // Build route rules
         let mut route_rules = serde_json::json!([
             {"action": "sniff"},
-            {"protocol": "dns", "action": "hijack-dns"},
+            {"protocol": "dns", "outbound": final_outbound},
             {"ip_cidr": bypass_cidrs, "outbound": "direct"}
         ]);
 
         // Add split tunnel rules
         if !c.split_rules.is_empty() {
-            // In WoW mode, don't allow custom split rules (lock WoW preset)
-            if is_wow_mode {
-                eprintln!("[warning] WoW Split mode does not support custom rules. Ignoring split_rules.");
-            } else {
-                let mut split_rules = Vec::new();
-                for split_rule in &c.split_rules {
-                    let pattern = &split_rule.pattern;
-                    // In full mode: user rules are exceptions that go direct
-                    // In custom mode: user rules determine routing
-                    let outbound = if is_full_mode {
-                        "direct"  // Full mode: exceptions bypass VPN
-                    } else {
-                        final_outbound  // Custom mode: route through VPN
-                    };
-                    
-                    if pattern.starts_with("*.") {
-                        split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": outbound}));
-                    } else if pattern.contains("*") {
-                        split_rules.push(serde_json::json!({"domain_keyword": [pattern.replace("*", "")], "outbound": outbound}));
-                    } else {
-                        split_rules.push(serde_json::json!({"domain": [pattern.clone()], "outbound": outbound}));
-                    }
+            let mut split_rules = Vec::new();
+            for split_rule in &c.split_rules {
+                let pattern = &split_rule.pattern;
+                // Split rules are "bypass" exceptions (route to direct)
+                // In WoW mode, rules are whitelist entries (route to final_outbound)
+                let outbound = if is_wow_mode { final_outbound } else { "direct" };
+                
+                if pattern.starts_with("*.") {
+                    split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": outbound}));
+                } else if pattern.contains("*") {
+                    split_rules.push(serde_json::json!({"domain_keyword": [pattern.replace("*", "")], "outbound": outbound}));
+                } else {
+                    split_rules.push(serde_json::json!({"domain": [pattern.clone()], "outbound": outbound}));
                 }
-                let arr = route_rules.as_array_mut().unwrap();
-                // Insert after sniff + DNS + bypass rules (index 3)
-                arr.splice(3..3, split_rules);
             }
+            let arr = route_rules.as_array_mut().unwrap();
+            arr.splice(3..3, split_rules);
         }
 
         // For WoW mode, add hardcoded WoW domains
         let mut has_wow_rules = c.split_rules.iter().any(|r| {
-            let p = r.pattern.as_str();
-            p.contains("battle.net") || p.contains("blizzard.com") || p.contains("worldofwarcraft.com") || p.contains("akamaized.net")
+            matches!(r.pattern.as_str(), "*.battle.net" | "*.blizzard.com" | "*.worldofwarcraft.com" | "*.akamaized.net")
         });
         if is_wow_mode && !has_wow_rules {
             let wow_domains = ["battle.net", "blizzard.com", "worldofwarcraft.com", "akamaized.net"];
@@ -323,8 +307,7 @@ impl ProxyManager {
             },
             "dns": {
                 "servers": [
-                    {"type": "https", "tag": "remote-doh", "server": "1.1.1.1", "detour": final_outbound},
-                    {"type": "https", "tag": "remote-doh-backup", "server": "8.8.8.8", "detour": final_outbound}
+                    {"type": "https", "tag": "remote-doh", "server": "1.1.1.1", "detour": final_outbound}
                 ],
                 "final": "remote-doh"
             },
@@ -332,7 +315,7 @@ impl ProxyManager {
                 "type": "tun", "tag": "tun-in",
                 "address": ["172.19.0.1/30"],
                 "mtu": c.mtu,
-                "auto_route": true, "strict_route": true, "stack": "system"
+                "auto_route": true, "strict_route": false, "stack": "system"
             }],
             "outbounds": outbounds,
             "route": {
