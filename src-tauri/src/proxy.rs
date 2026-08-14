@@ -277,7 +277,7 @@ impl ProxyManager {
                 
                 if !pattern.is_empty() {
                     if pattern.starts_with("*.") {
-                        split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": outbound}));
+                        split_rules.push(serde_json::json!({"domain_suffix": [pattern[2..].to_string()], "outbound": outbound}));
                     } else if pattern.contains("*") {
                         split_rules.push(serde_json::json!({"domain_keyword": [pattern.replace("*", "")], "outbound": outbound}));
                     } else {
@@ -286,7 +286,7 @@ impl ProxyManager {
                 }
                 // Add process name rule if present
                 if !split_rule.process_names.is_empty() {
-                    split_rules.push(serde_json::json!({"process_name": split_rule.process_names.clone(), "outbound": outbound}));
+                    split_rules.push(serde_json::json!({"process": split_rule.process_names.clone(), "outbound": outbound}));
                 }
             }
             let arr = route_rules.as_array_mut().unwrap();
