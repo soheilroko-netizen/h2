@@ -332,7 +332,7 @@ impl ProxyManager {
             },
             "dns": {
                 "servers": [
-                    {"type": "https", "tag": "remote-doh", "server": "https://1.1.1.1/dns-query"}
+                    {"type": "https", "tag": "remote-doh", "server": "1.1.1.1", "detour": final_outbound}
                 ],
                 "final": "remote-doh"
             },
