@@ -506,7 +506,7 @@ async function loadSettings() {
     // Load split settings
     const splitSettings = await invoke<{ split_mode: string; split_rules: SplitRule[] }>('get_split_settings');
     const mode = splitSettings.split_mode || 'full';
-    settingSplitRules.value = splitSettings.split_rules?.filter(r => !r.pattern.is_empty() || r.process_names.is_empty()).map(r => r.pattern).join('\n') || '';
+    settingSplitRules.value = splitSettings.split_rules?.filter(r => !r.pattern.is_empty()).map(r => r.pattern).join('\n') || '';
     
     // Load process names from split rules that have them
     const processNamesRule = splitSettings.split_rules?.find(r => !r.process_names?.is_empty());

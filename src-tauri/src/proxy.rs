@@ -275,12 +275,14 @@ impl ProxyManager {
                 // In full mode, split rules are "bypass" exceptions (route to direct)
                 let outbound = if is_wow_mode || is_custom_mode { final_outbound } else { "direct" };
                 
-                if pattern.starts_with("*.") {
-                    split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": outbound}));
-                } else if pattern.contains("*") {
-                    split_rules.push(serde_json::json!({"domain_keyword": [pattern.replace("*", "")], "outbound": outbound}));
-                } else {
-                    split_rules.push(serde_json::json!({"domain": [pattern.clone()], "outbound": outbound}));
+                if !pattern.is_empty() {
+                    if pattern.starts_with("*.") {
+                        split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": outbound}));
+                    } else if pattern.contains("*") {
+                        split_rules.push(serde_json::json!({"domain_keyword": [pattern.replace("*", "")], "outbound": outbound}));
+                    } else {
+                        split_rules.push(serde_json::json!({"domain": [pattern.clone()], "outbound": outbound}));
+                    }
                 }
                 // Add process name rule if present
                 if !split_rule.process_names.is_empty() {
