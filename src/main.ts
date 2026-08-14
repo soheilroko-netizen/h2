@@ -27,7 +27,7 @@ interface Config {
   socks5_port: number;
   mtu?: number;
   split_mode?: string;
-  split_rules?: { pattern: string }[];
+  split_rules?: SplitRule[];
   mode: string;
   h2_port: number;
   h2_password: string;
@@ -39,6 +39,12 @@ interface Config {
   h2_up_mbps: number;
   h2_down_mbps: number;
   h2_auto: boolean;
+}
+
+interface SplitRule {
+  pattern: string;
+  process_names?: string[];
+  folder_paths?: string[];
 }
 
 // ── Elements ─────────────────────────────────────────────
@@ -506,10 +512,10 @@ async function loadSettings() {
     // Load split settings
     const splitSettings = await invoke<{ split_mode: string; split_rules: SplitRule[] }>('get_split_settings');
     const mode = splitSettings.split_mode || 'full';
-    settingSplitRules.value = splitSettings.split_rules?.filter(r => !r.pattern.is_empty()).map(r => r.pattern).join('\n') || '';
-    
+    settingSplitRules.value = splitSettings.split_rules?.filter(r => r.pattern && r.pattern.length > 0).map(r => r.pattern).join('\n') || '';
+
     // Load process names from split rules that have them
-    const processNamesRule = splitSettings.split_rules?.find(r => !r.process_names?.is_empty());
+    const processNamesRule = splitSettings.split_rules?.find(r => r.process_names && r.process_names.length > 0);
     if (settingProcessNames) {
       settingProcessNames.value = processNamesRule?.process_names?.join('\n') || '';
     }
@@ -527,7 +533,6 @@ function updateSplitIndicator(splitMode: string) {
   
   let tooltipText = 'Full tunnel';
   if (splitMode === 'wow') tooltipText = 'Split tunnel: WoW Split (Blizzard/Battle.net only)';
-  else if (splitMode === 'custom') tooltipText = 'Split tunnel: Custom rules';
   
   splitIndicator.setAttribute('title', tooltipText);
 }
@@ -611,6 +616,7 @@ btnSaveSettings.addEventListener('click', async () => {
     // Get current split mode from active preset card
     const activeCard = document.querySelector('.split-preset-card.active') as HTMLElement;
     const splitMode = activeCard ? activeCard.dataset.preset || 'full' : 'full';
+
     // For custom mode, use domains and process names from textareas
     let splitRules: string[] = [];
     let processNames: string[] = [];

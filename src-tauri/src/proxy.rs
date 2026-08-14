@@ -262,7 +262,12 @@ impl ProxyManager {
         // Build route rules
         let mut route_rules = serde_json::json!([
             {"action": "sniff"},
-            {"protocol": "dns", "outbound": final_outbound},
+            {
+                "type": "logical",
+                "mode": "or",
+                "rules": [{"protocol": "dns"}, {"port": 53}],
+                "action": "hijack-dns"
+            },
             {"ip_cidr": bypass_cidrs, "outbound": "direct"}
         ]);
 
@@ -271,10 +276,11 @@ impl ProxyManager {
             let mut split_rules = Vec::new();
             for split_rule in &c.split_rules {
                 let pattern = &split_rule.pattern;
-                // In wow/custom modes (whitelist), split rules route to final_outbound
+                // In wow/custom modes (whitelist), split rules are whitelist entries (route to final_outbound)
                 // In full mode, split rules are "bypass" exceptions (route to direct)
                 let outbound = if is_wow_mode || is_custom_mode { final_outbound } else { "direct" };
-                
+
+                // Only create domain rules if pattern is non-empty (process-name-only rules have empty pattern)
                 if !pattern.is_empty() {
                     if pattern.starts_with("*.") {
                         split_rules.push(serde_json::json!({"domain_suffix": [pattern[2..].to_string()], "outbound": outbound}));
@@ -295,10 +301,20 @@ impl ProxyManager {
 
         // For WoW mode, add hardcoded WoW domains
         let mut has_wow_rules = c.split_rules.iter().any(|r| {
-            matches!(r.pattern.as_str(), "*.battle.net" | "*.blizzard.com" | "*.worldofwarcraft.com" | "*.akamaized.net")
+            matches!(r.pattern.as_str(),
+                "*.battle.net" | "*.blizzard.com" | "*.worldofwarcraft.com" | "*.akamaized.net" |
+                "*.discord.com" | "*.discordapp.com" | "*.discord.media" | "*.discordstatus.com" |
+                "*.discordapi.com" | "*.discordapp.net" | "*.discordcdn.com" |
+                "*.discordattachments.net" | "*.media.discordapp.net"
+            )
         });
         if is_wow_mode && !has_wow_rules {
-            let wow_domains = ["battle.net", "blizzard.com", "worldofwarcraft.com", "akamaized.net"];
+            let wow_domains = [
+                "battle.net", "blizzard.com", "worldofwarcraft.com", "akamaized.net",
+                "discord.com", "discordapp.com", "discord.media", "discordstatus.com",
+                "discordapi.com", "discordapp.net", "discordcdn.com", "discordattachments.net",
+                "media.discordapp.net",
+            ];
             let arr = route_rules.as_array_mut().unwrap();
             for domain in wow_domains {
                 arr.insert(3, serde_json::json!({"domain_suffix": [domain], "outbound": default_direct}));
@@ -316,7 +332,7 @@ impl ProxyManager {
             },
             "dns": {
                 "servers": [
-                    {"type": "https", "tag": "remote-doh", "server": "1.1.1.1", "detour": final_outbound}
+                    {"type": "https", "tag": "remote-doh", "server": "https://1.1.1.1/dns-query"}
                 ],
                 "final": "remote-doh"
             },
@@ -332,7 +348,7 @@ impl ProxyManager {
                 "final": route_final,
                 "auto_detect_interface": true,
                 "default_domain_resolver": "remote-doh",
-                "find_process": true
+                "find_process": false
             }
         }))
     }

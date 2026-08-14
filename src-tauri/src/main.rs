@@ -389,19 +389,20 @@ fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String
             return Err("MTU must be between 576 and 9000".into());
         }
     }
-    
+
     // Validate split mode
     if !["full", "wow", "custom"].contains(&split_mode.as_str()) {
         return Err("Invalid split mode".into());
     }
-    
+
+
     // Save split tunnel settings
     let mut split_rules_vec: Vec<SplitRule> = split_rules.into_iter().map(|pattern| SplitRule {
         pattern,
         process_names: vec![],
         folder_paths: vec![],
     }).collect();
-    
+
     // Add a SplitRule for process names (if any specified)
     if !process_names.is_empty() {
         split_rules_vec.push(SplitRule {
@@ -410,7 +411,7 @@ fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String
             folder_paths: vec![],
         });
     }
-    
+
     config::save_split_settings(&split_mode, split_rules_vec).map_err(|e| e.to_string())?;
     
     // Reconnect if proxy is running and requested
