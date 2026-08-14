@@ -96,6 +96,7 @@ const customRulesContainer = document.getElementById('custom-rules-container')!;
 const wowInfoContainer = document.getElementById('wow-info-container')!;
 const settingMtu = document.getElementById('setting-mtu') as HTMLInputElement;
 const settingSplitRules = document.getElementById('setting-split-rules') as HTMLTextAreaElement;
+const settingProcessNames = document.getElementById('setting-process-names') as HTMLTextAreaElement;
 const btnSaveSettings = document.getElementById('btn-save-settings')!;
 const btnUpdateGeofiles = document.getElementById('btn-update-geofiles')!;
 
@@ -406,19 +407,17 @@ async function loadProfile() {
 function updateServerSelectorUI(server: string) {
   const flagMap: Record<string, string> = {
     'netherlands-1': 'nl',
-    'germany-1': 'de',
     'germany-3': 'de',
     'finland-1': 'fi'
   };
   const displayMap: Record<string, string> = {
     'netherlands-1': 'Netherlands 1',
-    'germany-1': 'Germany 1',
     'germany-3': 'Germany 3',
     'finland-1': 'Finland 1'
   };
   
   const flag = flagMap[server] || 'de';
-  const display = displayMap[server] || 'Germany 1';
+  const display = displayMap[server] || 'Select Server';
   
   serverSelectorFlag.innerHTML = `<img src="https://flagcdn.com/16x12/${flag}.png" alt="${flag.toUpperCase()}" />`;
   serverSelectorText.textContent = display;
@@ -507,7 +506,13 @@ async function loadSettings() {
     // Load split settings
     const splitSettings = await invoke<{ split_mode: string; split_rules: SplitRule[] }>('get_split_settings');
     const mode = splitSettings.split_mode || 'full';
-    settingSplitRules.value = splitSettings.split_rules?.map(r => r.pattern).join('\n') || '';
+    settingSplitRules.value = splitSettings.split_rules?.filter(r => !r.pattern.is_empty() || r.process_names.is_empty()).map(r => r.pattern).join('\n') || '';
+    
+    // Load process names from split rules that have them
+    const processNamesRule = splitSettings.split_rules?.find(r => !r.process_names?.is_empty());
+    if (settingProcessNames) {
+      settingProcessNames.value = processNamesRule?.process_names?.join('\n') || '';
+    }
     
     // Update split preset UI
     updateSplitPresetUI(mode);
@@ -522,6 +527,7 @@ function updateSplitIndicator(splitMode: string) {
   
   let tooltipText = 'Full tunnel';
   if (splitMode === 'wow') tooltipText = 'Split tunnel: WoW Split (Blizzard/Battle.net only)';
+  else if (splitMode === 'custom') tooltipText = 'Split tunnel: Custom rules';
   
   splitIndicator.setAttribute('title', tooltipText);
 }
@@ -556,8 +562,15 @@ splitPresetCards.forEach(card => {
     const preset = (card as HTMLElement).dataset.preset || 'full';
     updateSplitPresetUI(preset);
 
-    // No custom rules in remaining modes — WoW domains hardcoded in backend
-    const splitRules: string[] = [];
+    // For custom mode, use domains and process names from textareas
+    let splitRules: string[] = [];
+    let processNames: string[] = [];
+    if (preset === 'custom') {
+      const raw = settingSplitRules.value.trim();
+      splitRules = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+      const procRaw = settingProcessNames?.value.trim() || '';
+      processNames = procRaw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+    }
 
     try {
       const running = await invoke('get_status');
@@ -565,6 +578,7 @@ splitPresetCards.forEach(card => {
         mtu: settingMtu.value ? parseInt(settingMtu.value, 10) : null,
         splitMode: preset,
         splitRules,
+        processNames,
         reconnect: running
       });
       showMessage('Settings saved', false);
@@ -597,10 +611,18 @@ btnSaveSettings.addEventListener('click', async () => {
     // Get current split mode from active preset card
     const activeCard = document.querySelector('.split-preset-card.active') as HTMLElement;
     const splitMode = activeCard ? activeCard.dataset.preset || 'full' : 'full';
-    const splitRules: string[] = [];  // No custom rules
+    // For custom mode, use domains and process names from textareas
+    let splitRules: string[] = [];
+    let processNames: string[] = [];
+    if (splitMode === 'custom') {
+      const raw = settingSplitRules.value.trim();
+      splitRules = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+      const procRaw = settingProcessNames?.value.trim() || '';
+      processNames = procRaw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+    }
 
     const running = await invoke('get_status');
-    await invoke('update_settings', { mtu, splitMode, splitRules, reconnect: running });
+    await invoke('update_settings', { mtu, splitMode, splitRules, processNames, reconnect: running });
     showMessage('Settings saved', false);
     if (running) showMessage('Reconnecting...', false);
   } catch (e) {

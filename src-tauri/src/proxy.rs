@@ -236,11 +236,14 @@ impl ProxyManager {
         let h2_mode = c.mode == "hysteria2";
         let final_outbound = if h2_mode { "h2-out" } else { "ss-out" };
 
-        // WoW Split mode: whitelist (only listed domains go through VPN)
+        // Split mode routing:
+        // - wow/custom: whitelist (only listed domains go through VPN, default = direct)
+        // - full: everything through VPN (default = VPN, listed domains → direct)
         let is_wow_mode = c.split_mode == "wow";
-        
-        let (route_final, default_direct) = if is_wow_mode {
-            ("direct", final_outbound)  // default = direct, WoW domains → VPN
+        let is_custom_mode = c.split_mode == "custom";
+
+        let (route_final, default_direct) = if is_wow_mode || is_custom_mode {
+            ("direct", final_outbound)  // default = direct, listed domains → VPN
         } else {
             (final_outbound, "direct")  // default = VPN, listed domains → direct
         };
@@ -268,9 +271,9 @@ impl ProxyManager {
             let mut split_rules = Vec::new();
             for split_rule in &c.split_rules {
                 let pattern = &split_rule.pattern;
-                // Split rules are "bypass" exceptions (route to direct)
-                // In WoW mode, rules are whitelist entries (route to final_outbound)
-                let outbound = if is_wow_mode { final_outbound } else { "direct" };
+                // In wow/custom modes (whitelist), split rules route to final_outbound
+                // In full mode, split rules are "bypass" exceptions (route to direct)
+                let outbound = if is_wow_mode || is_custom_mode { final_outbound } else { "direct" };
                 
                 if pattern.starts_with("*.") {
                     split_rules.push(serde_json::json!({"domain_suffix": [pattern[1..].to_string()], "outbound": outbound}));
@@ -278,6 +281,10 @@ impl ProxyManager {
                     split_rules.push(serde_json::json!({"domain_keyword": [pattern.replace("*", "")], "outbound": outbound}));
                 } else {
                     split_rules.push(serde_json::json!({"domain": [pattern.clone()], "outbound": outbound}));
+                }
+                // Add process name rule if present
+                if !split_rule.process_names.is_empty() {
+                    split_rules.push(serde_json::json!({"process_name": split_rule.process_names.clone(), "outbound": outbound}));
                 }
             }
             let arr = route_rules.as_array_mut().unwrap();
@@ -323,7 +330,7 @@ impl ProxyManager {
                 "final": route_final,
                 "auto_detect_interface": true,
                 "default_domain_resolver": "remote-doh",
-                "find_process": false
+                "find_process": true
             }
         }))
     }

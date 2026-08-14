@@ -21,7 +21,7 @@
             <div class="custom-select" id="server-selector-wrapper">
               <button type="button" class="custom-select-trigger" id="server-selector-trigger">
                 <span class="custom-select-flag" id="server-selector-flag"></span>
-                <span class="custom-select-text" id="server-selector-text">Germany 1</span>
+                <span class="custom-select-text" id="server-selector-text">Netherlands 1</span>
                 <svg class="custom-select-chevron" viewBox="0 0 24 24" width="16" height="16">
                   <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" fill="none"/>
                 </svg>
@@ -58,10 +58,12 @@
             <input type="number" id="setting-mtu" placeholder="Auto" style="width:100%;padding:6px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:4px;font-size:12px;" />
           </div>
 
-          <!-- Custom Mode: Bypass domains box -->
+          <!-- Custom Mode: Domains + Process Names -->
           <div id="custom-rules-container" style="display:none;margin-bottom:8px;">
-            <label style="display:block;color:#888;font-size:11px;margin-bottom:4px;">Domains to bypass VPN (everything else uses VPN)</label>
+            <label style="display:block;color:#888;font-size:11px;margin-bottom:4px;">Domains to route through VPN</label>
             <textarea id="setting-split-rules" placeholder="example.com&#10;google.com" rows="3" style="width:100%;padding:6px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:4px;font-size:11px;font-family:monospace;resize:vertical;"></textarea>
+            <label style="display:block;color:#888;font-size:11px;margin-bottom:4px;margin-top:8px;">Process names to route through VPN</label>
+            <textarea id="setting-process-names" placeholder="discord.exe&#10;chrome.exe" rows="3" style="width:100%;padding:6px;background:#0f0f1e;color:#fff;border:1px solid #444;border-radius:4px;font-size:11px;font-family:monospace;resize:vertical;"></textarea>
           </div>
 
           <!-- WoW Mode: info label only -->
@@ -106,6 +108,9 @@
             </button>
             <button class="split-preset-card" data-preset="wow">
               <div class="preset-name">WoW Split</div>
+            </button>
+            <button class="split-preset-card" data-preset="custom">
+              <div class="preset-name">Custom</div>
             </button>
           </div>
         </div>

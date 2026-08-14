@@ -382,7 +382,7 @@ fn get_h2_speeds() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String>, reconnect: bool, state: State<AppState>, app: tauri::AppHandle) -> Result<bool, String> {
+fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String>, process_names: Vec<String>, reconnect: bool, state: State<AppState>, app: tauri::AppHandle) -> Result<bool, String> {
     // Validate MTU
     if let Some(m) = mtu {
         if m < 576 || m > 9000 {
@@ -391,21 +391,25 @@ fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String
     }
     
     // Validate split mode
-    if !["full", "iran", "wow", "custom"].contains(&split_mode.as_str()) {
+    if !["full", "wow", "custom"].contains(&split_mode.as_str()) {
         return Err("Invalid split mode".into());
     }
     
-    // If iran mode and geofiles don't exist, download them
-    if split_mode == "iran" && !geofiles::geofiles_exist() {
-        geofiles::download_geofiles().map_err(|e| format!("Failed to download geofiles: {}", e))?;
-    }
-    
     // Save split tunnel settings
-    let split_rules_vec: Vec<SplitRule> = split_rules.into_iter().map(|pattern| SplitRule {
+    let mut split_rules_vec: Vec<SplitRule> = split_rules.into_iter().map(|pattern| SplitRule {
         pattern,
         process_names: vec![],
         folder_paths: vec![],
     }).collect();
+    
+    // Add a SplitRule for process names (if any specified)
+    if !process_names.is_empty() {
+        split_rules_vec.push(SplitRule {
+            pattern: String::new(),
+            process_names,
+            folder_paths: vec![],
+        });
+    }
     
     config::save_split_settings(&split_mode, split_rules_vec).map_err(|e| e.to_string())?;
     
