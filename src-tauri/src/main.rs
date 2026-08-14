@@ -391,15 +391,11 @@ fn update_settings(mtu: Option<u32>, split_mode: String, split_rules: Vec<String
     }
     
     // Validate split mode
-    if !["full", "iran", "wow", "custom"].contains(&split_mode.as_str()) {
+    if !["full", "wow", "custom"].contains(&split_mode.as_str()) {
         return Err("Invalid split mode".into());
     }
     
-    // If iran mode and geofiles don't exist, download them
-    if split_mode == "iran" && !geofiles::geofiles_exist() {
-        geofiles::download_geofiles().map_err(|e| format!("Failed to download geofiles: {}", e))?;
-    }
-    
+
     // Save split tunnel settings
     let split_rules_vec: Vec<SplitRule> = split_rules.into_iter().map(|pattern| SplitRule {
         pattern,

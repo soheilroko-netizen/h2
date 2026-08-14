@@ -406,19 +406,17 @@ async function loadProfile() {
 function updateServerSelectorUI(server: string) {
   const flagMap: Record<string, string> = {
     'netherlands-1': 'nl',
-    'germany-1': 'de',
     'germany-3': 'de',
     'finland-1': 'fi'
   };
   const displayMap: Record<string, string> = {
     'netherlands-1': 'Netherlands 1',
-    'germany-1': 'Germany 1',
     'germany-3': 'Germany 3',
     'finland-1': 'Finland 1'
   };
   
   const flag = flagMap[server] || 'de';
-  const display = displayMap[server] || 'Germany 1';
+  const display = displayMap[server] || 'Select Server';
   
   serverSelectorFlag.innerHTML = `<img src="https://flagcdn.com/16x12/${flag}.png" alt="${flag.toUpperCase()}" />`;
   serverSelectorText.textContent = display;
@@ -556,8 +554,12 @@ splitPresetCards.forEach(card => {
     const preset = (card as HTMLElement).dataset.preset || 'full';
     updateSplitPresetUI(preset);
 
-    // No custom rules in remaining modes — WoW domains hardcoded in backend
-    const splitRules: string[] = [];
+    // For custom mode, use domains from textarea
+    let splitRules: string[] = [];
+    if (preset === 'custom') {
+      const raw = settingSplitRules.value.trim();
+      splitRules = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+    }
 
     try {
       const running = await invoke('get_status');
@@ -597,7 +599,13 @@ btnSaveSettings.addEventListener('click', async () => {
     // Get current split mode from active preset card
     const activeCard = document.querySelector('.split-preset-card.active') as HTMLElement;
     const splitMode = activeCard ? activeCard.dataset.preset || 'full' : 'full';
-    const splitRules: string[] = [];  // No custom rules
+
+    // For custom mode, use domains from textarea
+    let splitRules: string[] = [];
+    if (splitMode === 'custom') {
+      const raw = settingSplitRules.value.trim();
+      splitRules = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+    }
 
     const running = await invoke('get_status');
     await invoke('update_settings', { mtu, splitMode, splitRules, reconnect: running });
