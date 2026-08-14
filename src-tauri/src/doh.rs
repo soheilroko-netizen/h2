@@ -22,7 +22,7 @@ async fn run_hidden(args: Vec<&str>) -> Result<String> {
         // Extract the program name before moving args into closure
         let program = args[0].to_string();
         
-        let output = tokio::task::spawn_blocking(move || -> std::io::Result<std::process::Output> {
+        let output = tokio::task::spawn_blocking(move || {
             std::process::Command::new(args[0])
                 .args(&args[1..])
                 .creation_flags(CREATE_NO_WINDOW)
